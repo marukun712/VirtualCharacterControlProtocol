@@ -10,50 +10,37 @@ import express from "express";
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import expressWs from "express-ws";
+import type { WebSocket } from "ws";
 
 class VCCPServer {
-  private wsUrl = "ws://localhost:3000/vccp";
-  private ws: WebSocket | null = null;
-  private connected = false;
   private latestPerceptions: Map<string, PerceptionData> = new Map();
+  private connectedClients: Set<WebSocket> = new Set();
 
-  async connectToServer(): Promise<boolean> {
-    if (this.connected) return true;
+  setupWebSocketRoutes(app: expressWs.Application): void {
+    app.ws("/vccp", (ws: WebSocket, req) => {
+      console.log("Client connected to VCCP WebSocket server");
+      this.connectedClients.add(ws);
 
-    try {
-      const ws = new WebSocket(this.wsUrl);
-      this.ws = ws;
-
-      return new Promise((resolve) => {
-        ws.onopen = () => {
-          this.connected = true;
-          console.log("Connected to VCCP server");
-          resolve(true);
-        };
-
-        ws.onerror = (error) => {
-          console.error("WebSocket connection error:", error);
-          resolve(false);
-        };
-
-        ws.onclose = () => {
-          this.connected = false;
-          console.log("Disconnected from VCCP server");
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data) as VCCPMessage;
-            this.handleMessage(message);
-          } catch (error) {
-            console.error("Failed to parse message:", error);
-          }
-        };
+      ws.on("message", (data) => {
+        try {
+          const message = JSON.parse(data.toString()) as VCCPMessage;
+          this.handleMessage(message);
+        } catch (error) {
+          console.error("Failed to parse message:", error);
+        }
       });
-    } catch (error) {
-      console.error("Failed to connect to WebSocket server:", error);
-      return false;
-    }
+
+      ws.on("close", () => {
+        console.log("Client disconnected from VCCP WebSocket server");
+        this.connectedClients.delete(ws);
+      });
+
+      ws.on("error", (error) => {
+        console.error("WebSocket client error:", error);
+        this.connectedClients.delete(ws);
+      });
+    });
   }
 
   private handleMessage(message: VCCPMessage) {
@@ -67,18 +54,18 @@ class VCCPServer {
   }
 
   async sendAction(action: ActionData): Promise<ActionResult> {
-    if (!this.connected || !this.ws) {
+    if (this.connectedClients.size === 0) {
       return {
         success: false,
-        message: "Not connected to server",
+        message: "No clients connected",
       };
     }
 
     try {
-      this.ws.send(JSON.stringify(action));
+      this.broadcastToClients(action);
       return {
         success: true,
-        message: "Action sent successfully",
+        message: "Action sent to all connected clients",
       };
     } catch (error) {
       return {
@@ -91,10 +78,41 @@ class VCCPServer {
   getLatestPerception(category: string): PerceptionData | null {
     return this.latestPerceptions.get(category) || null;
   }
+
+  broadcastToClients(message: VCCPMessage): void {
+    if (this.connectedClients.size === 0) {
+      console.warn("Cannot send event: No clients connected");
+      return;
+    }
+
+    const messageStr = JSON.stringify(message);
+    const deadClients = new Set<WebSocket>();
+
+    this.connectedClients.forEach((client) => {
+      if (client.readyState === client.OPEN) {
+        try {
+          client.send(messageStr);
+        } catch (error) {
+          console.error("Failed to send message to client:", error);
+          deadClients.add(client);
+        }
+      } else {
+        deadClients.add(client);
+      }
+    });
+
+    deadClients.forEach((client) => {
+      this.connectedClients.delete(client);
+    });
+
+    console.log(
+      `Event sent to ${this.connectedClients.size} clients:`,
+      message
+    );
+  }
 }
 
 const vccpServer = new VCCPServer();
-await vccpServer.connectToServer();
 
 const server = new McpServer({
   name: "vccp",
@@ -196,25 +214,7 @@ server.tool(
   "VRMキャラクターの表情を設定します",
   {
     preset: z
-      .enum([
-        "a",
-        "e",
-        "i",
-        "o",
-        "u",
-        "blink",
-        "joy",
-        "angry",
-        "sorrow",
-        "fun",
-        "lookup",
-        "lookdown",
-        "lookleft",
-        "lookright",
-        "blink_l",
-        "blink_r",
-        "neutral",
-      ])
+      .enum(["happy", "angry", "sad", "neutral"])
       .describe("表情プリセット"),
   },
   async ({ preset }) => {
@@ -270,11 +270,15 @@ server.tool(
 );
 
 const app = express();
-app.use(express.json());
+const wsInstance = expressWs(app);
+const wsApp = wsInstance.app;
+
+wsApp.use(express.json());
+vccpServer.setupWebSocketRoutes(wsApp);
 
 const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
-app.post("/mcp", async (req, res) => {
+wsApp.post("/mcp", async (req, res) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
   let transport: StreamableHTTPServerTransport;
 
@@ -324,8 +328,11 @@ const handleSessionRequest = async (
   await transport.handleRequest(req, res);
 };
 
-app.get("/mcp", handleSessionRequest);
+wsApp.get("/mcp", handleSessionRequest);
 
-app.delete("/mcp", handleSessionRequest);
+wsApp.delete("/mcp", handleSessionRequest);
 
-app.listen(3000);
+wsApp.listen(3000, () => {
+  console.log("MCP Server started on port 3000");
+  console.log("WebSocket endpoint available at ws://localhost:3000/vccp");
+});

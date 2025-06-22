@@ -2,9 +2,12 @@ import { useEffect, useRef } from "hono/jsx";
 import * as THREE from "three";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/examples/jsm/Addons.js";
 
 interface VCCPMessage {
-  type: "perception" | "action";
+  type: "perception" | "action" | "system";
+  category: string;
+  timestamp: string;
   data: any;
 }
 
@@ -31,6 +34,8 @@ export default function VCCPClient() {
       1000
     );
     camera.position.set(0, 1.6, 3);
+
+    const orbitControls = new OrbitControls(camera, canvasRef.current);
 
     const renderer = new THREE.WebGLRenderer({
       canvas: canvasRef.current,
@@ -95,6 +100,7 @@ export default function VCCPClient() {
       }
 
       renderer.render(scene, camera);
+      orbitControls.update();
     };
     animate();
 
@@ -227,19 +233,51 @@ function createFurniture(scene: THREE.Scene) {
 }
 
 function handleVCCPMessage(message: VCCPMessage, vrm: VRM | null) {
-  if (!vrm) return;
+  console.log("Received VCCP message:", message);
 
   switch (message.type) {
     case "action":
-      if (message.data.action === "move-character") {
-        const { x, y, z } = message.data.position;
-        vrm.scene.position.set(x, y, z);
-      } else if (message.data.action === "look-at") {
-        const { x, y, z } = message.data.target;
-        vrm.scene.lookAt(x, y, z);
-      } else if (message.data.action === "set-expression") {
-        console.log("Expression:", message.data.expression);
+      if (!vrm) return;
+
+      switch (message.category) {
+        case "movement":
+          const { target, speed } = message.data;
+          if (target) {
+            vrm.scene.position.set(target.x, target.y, target.z);
+          }
+          break;
+
+        case "lookAt":
+          const lookTarget = message.data.target?.value;
+          if (lookTarget) {
+            vrm.scene.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
+          }
+          break;
+
+        case "expression":
+          if (message.data.preset && vrm.expressionManager) {
+            // Reset all expressions
+            Object.keys(vrm.expressionManager.expressionMap).forEach((key) => {
+              vrm.expressionManager?.setValue(key, 0);
+            });
+            // Set new expression
+            vrm.expressionManager.setValue(message.data.preset, 1.0);
+          }
+          break;
+
+        case "anim":
+          console.log("Animation BVH received:", message.data.bvh);
+          // BVHアニメーション処理は今回は実装をスキップ
+          break;
       }
+      break;
+
+    case "system":
+      console.log("System message:", message.data.content || message.data);
+      break;
+
+    case "perception":
+      console.log("Perception data received:", message.category, message.data);
       break;
   }
 }
