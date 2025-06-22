@@ -25,7 +25,6 @@ VCCP (Virtual Character Control Protocol) は、LLM (Large Language Model) が M
 ### 3.1 接続確立
 
 - WebSocket 接続: `ws://[server]:[port]/vccp`
-- プロトコルバージョン: `vccp-1.0`
 
 ### 3.2 メッセージフォーマット
 
@@ -43,25 +42,6 @@ VCCP (Virtual Character Control Protocol) は、LLM (Large Language Model) が M
 ## 4. 知覚情報 (Perception)
 
 ### 4.1 基本知覚情報
-
-#### 視覚情報
-
-```json
-{
-  "type": "perception",
-  "category": "vision",
-  "timestamp": "2024-01-01T00:00:00Z",
-  "data": {
-    "image": "base64_encoded_image",
-    "format": "jpeg|png",
-    "resolution": {
-      "width": 1920,
-      "height": 1080
-    },
-    "fov": 60
-  }
-}
-```
 
 #### 環境情報
 
@@ -170,7 +150,7 @@ VCCP (Virtual Character Control Protocol) は、LLM (Large Language Model) が M
   "category": "expression",
   "timestamp": "2024-01-01T00:00:00Z",
   "data": {
-    "preset": "a|e|i|o|u|blink|joy|angry|sorrow|fun|lookup|lookdown|lookleft|lookright|blink_l|blink_r|neutral"
+    "preset": "string"
   }
 }
 ```
