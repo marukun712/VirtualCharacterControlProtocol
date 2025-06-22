@@ -1,8 +1,8 @@
-# VCCP (VRM Character Control Protocol) v1.0
+# VCCP (Virtual Character Control Protocol) v1.0
 
 ## 1. 概要
 
-VCCP (VRM Character Control Protocol) は、LLM (Large Language Model) が MCP (Model Context Protocol) を経由して VRM モデルを人間らしく操作するためのプロトコルです。WebSocket を基盤とし、双方向のリアルタイム通信により、知覚情報の受信と制御命令の送信を実現します。
+VCCP (Virtual Character Control Protocol) は、LLM (Large Language Model) が MCP (Model Context Protocol) を経由して VRM モデルを人間らしく操作するためのプロトコルです。WebSocket を基盤とし、双方向のリアルタイム通信により、知覚情報の受信と制御命令の送信を実現します。
 
 ### 1.1 設計原則
 
@@ -175,7 +175,7 @@ VCCP (VRM Character Control Protocol) は、LLM (Large Language Model) が MCP (
 }
 ```
 
-#### ジェスチャー
+#### アニメーション
 
 ```json
 {
