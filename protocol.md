@@ -1,4 +1,4 @@
-# VCCP (VRM Character Control Protocol) 仕様書 v1.0
+# VCCP (VRM Character Control Protocol) v1.0
 
 ## 1. 概要
 

@@ -162,24 +162,6 @@ export const SystemMessageSchema = z.object({
 
 export type SystemMessage = z.infer<typeof SystemMessageSchema>;
 
-// 接続管理
-export const ConnectionSystemSchema = z.object({
-  type: z.literal("system"),
-  category: z.literal("connection"),
-  timestamp: z.string(),
-  data: z.object({
-    status: z.enum(["connected", "disconnected", "error"]),
-    clientId: z.string(),
-  }),
-});
-
-// カスタム知覚情報/制御命令の登録スキーマ
-export const CustomRegistrationSchema = z.object({
-  type: z.enum(["perception", "action"]),
-  name: z.string(),
-  schema: z.record(z.any()),
-});
-
 // WebSocketクライアント情報
 export const ClientInfoSchema = z.object({
   id: z.string(),

@@ -150,7 +150,6 @@ function createRoom(scene: THREE.Scene) {
   backWall.rotation.y = Math.PI;
   scene.add(backWall);
 
-  // 左の壁
   const leftWall = new THREE.Mesh(wallGeometry, wallMaterial);
   leftWall.position.set(-roomSize / 2, 1.5, 0);
   leftWall.rotation.y = Math.PI / 2;

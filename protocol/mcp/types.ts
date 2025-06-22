@@ -42,16 +42,18 @@ export const EnvironmentPerceptionSchema = z.object({
   category: z.literal("environment"),
   timestamp: z.string(),
   data: z.object({
-    objects: z.array(z.object({
-      id: z.string(),
-      type: z.enum(["furniture", "person", "object"]),
-      name: z.string(),
-      position: z.object({
-        x: z.number(),
-        y: z.number(),
-        z: z.number(),
-      }),
-    })),
+    objects: z.array(
+      z.object({
+        id: z.string(),
+        type: z.enum(["furniture", "person", "object"]),
+        name: z.string(),
+        position: z.object({
+          x: z.number(),
+          y: z.number(),
+          z: z.number(),
+        }),
+      })
+    ),
   }),
 });
 
@@ -119,9 +121,23 @@ export const ExpressionActionSchema = z.object({
   timestamp: z.string(),
   data: z.object({
     preset: z.enum([
-      "a", "e", "i", "o", "u", "blink", "joy", "angry", "sorrow", 
-      "fun", "lookup", "lookdown", "lookleft", "lookright", 
-      "blink_l", "blink_r", "neutral"
+      "a",
+      "e",
+      "i",
+      "o",
+      "u",
+      "blink",
+      "joy",
+      "angry",
+      "sorrow",
+      "fun",
+      "lookup",
+      "lookdown",
+      "lookleft",
+      "lookright",
+      "blink_l",
+      "blink_r",
+      "neutral",
     ]),
   }),
 });
@@ -145,17 +161,6 @@ export const SystemMessageSchema = z.object({
 });
 
 export type SystemMessage = z.infer<typeof SystemMessageSchema>;
-
-// 接続管理
-export const ConnectionSystemSchema = z.object({
-  type: z.literal("system"),
-  category: z.literal("connection"),
-  timestamp: z.string(),
-  data: z.object({
-    status: z.enum(["connected", "disconnected", "error"]),
-    clientId: z.string(),
-  }),
-});
 
 // アクション結果
 export const ActionResultSchema = z.object({

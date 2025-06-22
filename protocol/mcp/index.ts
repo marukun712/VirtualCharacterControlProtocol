@@ -1,5 +1,4 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
   type VCCPMessage,
@@ -7,6 +6,10 @@ import {
   type ActionData,
   type ActionResult,
 } from "./types.js";
+import express from "express";
+import { randomUUID } from "node:crypto";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 class VCCPServer {
   private wsUrl = "ws://localhost:3000/vccp";
@@ -91,6 +94,7 @@ class VCCPServer {
 }
 
 const vccpServer = new VCCPServer();
+await vccpServer.connectToServer();
 
 const server = new McpServer({
   name: "vccp",
@@ -265,18 +269,63 @@ server.tool(
   }
 );
 
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("VCCP MCP Server running on stdio");
+const app = express();
+app.use(express.json());
 
-  setTimeout(async () => {
-    console.error("Attempting to connect to VCCP server...");
-    await vccpServer.connectToServer();
-  }, 1000);
-}
+const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  process.exit(1);
+app.post("/mcp", async (req, res) => {
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  let transport: StreamableHTTPServerTransport;
+
+  if (sessionId && transports[sessionId]) {
+    transport = transports[sessionId];
+  } else if (!sessionId && isInitializeRequest(req.body)) {
+    transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sessionId) => {
+        transports[sessionId] = transport;
+      },
+    });
+
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        delete transports[transport.sessionId];
+      }
+    };
+
+    await server.connect(transport);
+  } else {
+    res.status(400).json({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: "Bad Request: No valid session ID provided",
+      },
+      id: null,
+    });
+    return;
+  }
+
+  await transport.handleRequest(req, res, req.body);
 });
+
+const handleSessionRequest = async (
+  req: express.Request,
+  res: express.Response
+) => {
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  if (!sessionId || !transports[sessionId]) {
+    res.status(400).send("Invalid or missing session ID");
+    return;
+  }
+
+  const transport = transports[sessionId];
+  await transport.handleRequest(req, res);
+};
+
+app.get("/mcp", handleSessionRequest);
+
+app.delete("/mcp", handleSessionRequest);
+
+app.listen(3000);

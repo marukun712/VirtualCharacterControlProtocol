@@ -115,6 +115,7 @@ function handlePerception(perception: PerceptionData) {
 Bun.serve({
   fetch: app.fetch,
   websocket,
+  port: 8000,
 });
 
 export default app;
