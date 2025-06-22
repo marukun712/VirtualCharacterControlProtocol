@@ -1,97 +1,70 @@
 # CLAUDE.md
 
-必ず日本語で回答してください。
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+必ず日本語で回答してください。
 
-This is the VRM Character Control Protocol (VCCP) v1.0 specification repository. VCCP is a minimal and extensible communication protocol for LLMs to control VRM character behaviors. The project focuses on protocol design and specification rather than implementation.
+## 開発コマンド
 
-## Repository Structure
+### MCP Server（MCPプロトコル実装）
+```bash
+cd protocol/mcp
+bun install
+bun run index.ts
+```
 
-- `protocol.md`: Complete VCCP v1.0 specification document (Japanese)
-  - Defines JSON-RPC 2.0 over WebSocket protocol
-  - Core API with 3 methods: `core.execute`, `context.set`, `plugin.register`
-  - Plugin architecture for extensibility
-  - Standard action types: motion, expression, speech
-  - Event system for notifications
+### WebSocket Server（Honoベース）
+```bash
+cd protocol/server
+bun install
+bun run dev  # 開発サーバー起動（ホットリロード有効）
+```
+開発サーバーは http://localhost:3000 でアクセス可能
 
-## Architecture Philosophy
+## アーキテクチャ概要
 
-The protocol follows these core design principles:
+このプロジェクトは VCCP (VRM Character Control Protocol) の実装で、以下の2つの主要コンポーネントから構成されている：
 
-- **Minimal Core API**: Only essential control functions in core
-- **Plugin-Driven**: All advanced features implemented as plugins
-- **Context-Centric**: All actions are context-aware and contextually driven
-- **AI-Friendly**: Designed for LLM comprehension and usage
+### 1. MCP Server (`protocol/mcp/`)
+- Model Context Protocol (MCP) SDK を使用したLLM連携サーバー
+- WebSocket通信でVRMクライアントと接続
+- 現在は仮実装（weather APIのサンプルコード）
+- 将来的にはVCCPプロトコルに準拠したツールを提供
 
-## Protocol Structure
+### 2. WebSocket Server (`protocol/server/`)
+- Hono フレームワークベースのWebSocketサーバー
+- VRMクライアントとの直接通信を担当
+- 現在は基本的なHTTPサーバーとして実装
 
-### Core Communication
+### プロトコル仕様
+- `protocol.md` にVCCP v1.0の詳細仕様を記載
+- WebSocketベースの双方向リアルタイム通信
+- 知覚情報（perception）と制御命令（action）の定義
+- カスタム拡張可能な設計
 
-- Protocol: JSON-RPC 2.0 over WebSocket
-- Message Format: JSON
-- Base message structure includes `action`, `data`, and `context` parameters
+### 技術スタック
+- TypeScript + Bun
+- MCP SDK (@modelcontextprotocol/sdk)
+- Hono (Web framework)
+- Zod (Schema validation)
+- WebSocket for real-time communication
 
-### Core Methods
+### 開発環境
+- Bunを実行環境として使用
+- TypeScript strict mode有効
+- プロジェクトは2つの独立したパッケージとして構成
 
-1. `core.execute` - Execute actions (motion, expression, speech, custom)
-2. `context.set` - Manage global context state
-3. `plugin.register` - Register plugin handlers
+## 実装状況と接続方法
 
-### Plugin System
+### MCPツール
+MCPサーバーは以下のツールを提供:
+- `get-perception`: 知覚情報の取得
+- `move-character`: キャラクター移動制御
+- `look-at`: 視線制御
+- `set-expression`: 表情制御
+- `play-animation`: BVHアニメーション再生
 
-- Plugins extend core functionality
-- Standard naming: `plugin_name.method`
-- Examples: `ai_motion.generate`, `emotion.analyze`, `gesture.generate`
-
-## Development Commands
-
-For prototype implementation in `protocol/` directory:
-- `bun run dev` - Start development server with hot reload
-- `bun install` - Install dependencies
-
-## Development Notes
-
-- This repository contains both specification (protocol.md) and prototype implementation (protocol/ directory)
-- The specification is the primary focus, with TypeScript prototype serving as reference implementation
-- Protocol prototype runs on http://localhost:3000 with WebSocket endpoint at ws://localhost:3000/vccp
-
-## Implementation Architecture
-
-### Code Structure
-
-- `protocol/src/core.ts` - VCCPCore class handling JSON-RPC requests and core methods
-- `protocol/src/plugin-manager.ts` - Plugin management and built-in plugin initialization
-- `protocol/src/types.ts` - TypeScript type definitions for protocol interfaces
-- `protocol/src/plugins/sample-plugin.ts` - Reference plugin implementations
-- `protocol/src/index.ts` - Hono server with WebSocket support and test client
-
-### Core Components
-
-1. **VCCPCore**: Handles JSON-RPC 2.0 protocol, manages context state, executes actions
-2. **PluginManager**: Manages built-in and external plugins, supports composite actions
-3. **Built-in Plugins**: 
-   - AIMotionGeneratorPlugin: Mock AI motion generation
-   - EmotionAnalyzerPlugin: Text-based emotion analysis
-   - GestureGeneratorPlugin: Cultural context-aware gesture generation
-
-### Protocol Flow
-
-1. WebSocket connection established to `/vccp` endpoint
-2. JSON-RPC 2.0 messages processed by VCCPCore
-3. Actions routed to standard handlers or plugins based on action name
-4. Results returned via JSON-RPC response
-5. Events broadcasted to all connected clients
-
-## Key Concepts for Implementation
-
-When working with VCCP implementations:
-
-- All actions should be context-aware
-- Plugin architecture allows infinite extensibility  
-- Core remains minimal while plugins provide rich functionality
-- Event system enables real-time feedback and state management
-- Standard action types provide consistent interface across implementations
-- Built-in plugins serve as reference implementations for external plugin development
+### 接続フロー
+1. MCPサーバーがWebSocketサーバー(`ws://localhost:3000/vccp`)に接続
+2. VRMクライアントもWebSocketエンドポイントに接続
+3. MCPツール経由でLLMから制御命令を送信
