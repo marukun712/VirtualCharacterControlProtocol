@@ -31,7 +31,7 @@ bun run deploy  # Cloudflare Workersにデプロイ
 - Model Context Protocol (MCP) SDK を使用したLLM連携サーバー
 - **統合アーキテクチャ**: 1つのExpressアプリケーションでHTTPとWebSocketを統合提供
   - Port 3000: HTTP MCP サーバー（LLMとの通信）+ WebSocket サーバー（VRMクライアントとの通信）
-- VCCP v1.0に準拠した8つのツールを提供（完全実装済み）
+- VCCP v1.0に準拠した5つのツールを提供（実装済み）
 - WebSocketクライアント管理とメッセージブロードキャスト機能
 
 ### 2. VRM Client (`protocol/client/`)
@@ -74,21 +74,17 @@ bun run deploy  # Cloudflare Workersにデプロイ
 
 ## 実装状況と接続方法
 
-### MCPツール（完全実装済み）
+### MCPツール（実装済み）
 MCPサーバーは以下のVCCP v1.0準拠ツールを提供:
 
 **キャラクター制御ツール:**
 - `get-perception`: 知覚情報の取得
 - `move-character`: キャラクター移動制御（x,y,z座標指定）
 - `look-at`: 視線制御（x,y,z座標またはターゲット指定）
-- `set-expression`: 表情制御（17種類のプリセット対応）
-- `play-animation`: BVHアニメーション再生（URL指定）
+- `set-expression`: 表情制御（現在は4種類のプリセット: happy, angry, sad, neutral）
+- `play-animation`: BVHアニメーション再生（base64エンコードされたBVHデータ）
 
-**クライアント通信ツール:**
-- `send-system-message`: システムメッセージをクライアントに送信
-- `send-perception-update`: 知覚情報更新をクライアントに送信
-- `send-custom-event`: カスタムイベントメッセージを送信
-- `get-connected-clients`: 接続中のクライアント数を取得
+**注意**: プロトコル仕様には追加のクライアント通信ツール（send-system-message, send-perception-update, send-custom-event, get-connected-clients）が定義されていますが、現在のMCPサーバー実装では未実装です。
 
 ### VRM Client機能（実装済み）
 - Three.js + VRMLoader による3Dキャラクター表示

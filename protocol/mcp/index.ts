@@ -1,11 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import {
-  type VCCPMessage,
-  type PerceptionData,
-  type ActionData,
-  type ActionResult,
-} from "./types.js";
+import { type VCCPMessage, VCCPMessageSchema } from "./types.js";
 import express from "express";
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -14,7 +9,7 @@ import expressWs from "express-ws";
 import type { WebSocket } from "ws";
 
 class VCCPServer {
-  private latestPerceptions: Map<string, PerceptionData> = new Map();
+  private latestPerceptions: Map<string, VCCPMessage> = new Map();
   private connectedClients: Set<WebSocket> = new Set();
 
   setupWebSocketRoutes(app: expressWs.Application): void {
@@ -24,10 +19,10 @@ class VCCPServer {
 
       ws.on("message", (data) => {
         try {
-          const message = JSON.parse(data.toString()) as VCCPMessage;
-          this.handleMessage(message);
+          const parsed = JSON.parse(data.toString());
+          this.handleMessage(parsed);
         } catch (error) {
-          console.error("Failed to parse message:", error);
+          console.error("Failed to parse JSON message:", error);
         }
       });
 
@@ -43,17 +38,25 @@ class VCCPServer {
     });
   }
 
-  private handleMessage(message: VCCPMessage) {
-    console.log("Received message:", message);
+  private handleMessage(data: unknown) {
+    console.log("Received raw message:", data);
+
+    const messageValidation = VCCPMessageSchema.safeParse(data);
+    if (!messageValidation.success) {
+      console.error("Invalid message format:", messageValidation.error);
+      return;
+    }
+
+    const message = messageValidation.data;
+    console.log("Validated message:", message);
 
     if (message.type === "perception") {
-      const perception = message as PerceptionData;
-
-      this.latestPerceptions.set(perception.category, perception);
+      this.latestPerceptions.set(message.category, message);
+      console.log("Stored perception data:", message.category);
     }
   }
 
-  async sendAction(action: ActionData): Promise<ActionResult> {
+  async sendAction(action: VCCPMessage) {
     if (this.connectedClients.size === 0) {
       return {
         success: false,
@@ -75,7 +78,7 @@ class VCCPServer {
     }
   }
 
-  getLatestPerception(category: string): PerceptionData | null {
+  getLatestPerception(category: string): VCCPMessage | null {
     return this.latestPerceptions.get(category) || null;
   }
 
@@ -148,7 +151,7 @@ server.tool(
     speed: z.number().optional().default(1.0).describe("移動速度"),
   },
   async ({ x, y, z, speed }) => {
-    const action: ActionData = {
+    const actionData = {
       type: "action",
       category: "movement",
       timestamp: new Date().toISOString(),
@@ -158,7 +161,19 @@ server.tool(
       },
     };
 
-    const result = await vccpServer.sendAction(action);
+    const validation = VCCPMessageSchema.safeParse(actionData);
+    if (!validation.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `無効な移動パラメータです: ${validation.error}`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendAction(validation.data);
 
     return {
       content: [
@@ -182,7 +197,7 @@ server.tool(
     z: z.number().describe("Z座標"),
   },
   async ({ x, y, z }) => {
-    const action: ActionData = {
+    const actionData = {
       type: "action",
       category: "lookAt",
       timestamp: new Date().toISOString(),
@@ -194,7 +209,19 @@ server.tool(
       },
     };
 
-    const result = await vccpServer.sendAction(action);
+    const validation = VCCPMessageSchema.safeParse(actionData);
+    if (!validation.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `無効な視線制御パラメータです: ${validation.error}`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendAction(validation.data);
 
     return {
       content: [
@@ -218,14 +245,26 @@ server.tool(
       .describe("表情プリセット"),
   },
   async ({ preset }) => {
-    const action: ActionData = {
+    const actionData = {
       type: "action",
       category: "expression",
       timestamp: new Date().toISOString(),
       data: { preset },
     };
 
-    const result = await vccpServer.sendAction(action);
+    const validation = VCCPMessageSchema.safeParse(actionData);
+    if (!validation.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `無効な表情パラメータです: ${validation.error}`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendAction(validation.data);
 
     return {
       content: [
@@ -247,14 +286,26 @@ server.tool(
     bvh: z.string().describe("Base64エンコードされたBVHデータ"),
   },
   async ({ bvh }) => {
-    const action: ActionData = {
+    const actionData = {
       type: "action",
       category: "anim",
       timestamp: new Date().toISOString(),
       data: { bvh },
     };
 
-    const result = await vccpServer.sendAction(action);
+    const validation = VCCPMessageSchema.safeParse(actionData);
+    if (!validation.success) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `無効なアニメーションパラメータです: ${validation.error}`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendAction(validation.data);
 
     return {
       content: [

@@ -3,13 +3,7 @@ import * as THREE from "three";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-
-interface VCCPMessage {
-  type: "perception" | "action" | "system";
-  category: string;
-  timestamp: string;
-  data: any;
-}
+import { VCCPMessage, VCCPMessageSchema } from "../types";
 
 export default function VCCPClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -84,7 +78,13 @@ export default function VCCPClient() {
     };
 
     ws.onmessage = (event) => {
-      const message: VCCPMessage = JSON.parse(event.data);
+      const message = JSON.parse(event.data);
+      const parsed = VCCPMessageSchema.safeParse(message);
+      if (!parsed.success) {
+        console.error("Invalid VCCP message format:", parsed.error);
+        return;
+      }
+
       handleVCCPMessage(message, vrm);
     };
 
