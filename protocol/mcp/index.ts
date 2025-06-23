@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { type VCCPMessage, VCCPMessageSchema } from "./types.js";
+import { type Agent, type VCCPMessage, VCCPMessageSchema } from "./types.js";
 import express from "express";
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -9,37 +9,64 @@ import expressWs from "express-ws";
 import type { WebSocket } from "ws";
 
 class VCCPServer {
-  private latestPerceptions: Map<string, VCCPMessage> = new Map();
   private connectedClients: Set<WebSocket> = new Set();
+
+  private agents: Map<string, Agent> = new Map();
+  private sessions: Map<WebSocket, string> = new Map();
 
   setupWebSocketRoutes(app: expressWs.Application): void {
     app.ws("/vccp", (ws: WebSocket, req) => {
-      console.log("Client connected to VCCP WebSocket server");
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      console.log(
+        `Client connected to VCCP WebSocket server${
+          sessionId ? ` with session: ${sessionId}` : ""
+        }`
+      );
+
+      if (!sessionId) {
+        return;
+      }
+
       this.connectedClients.add(ws);
+      this.sessions.set(ws, sessionId);
 
       ws.on("message", (data) => {
         try {
           const parsed = JSON.parse(data.toString());
-          this.handleMessage(parsed);
+          this.handleMessage(parsed, ws, sessionId);
         } catch (error) {
           console.error("Failed to parse JSON message:", error);
         }
       });
 
       ws.on("close", () => {
-        console.log("Client disconnected from VCCP WebSocket server");
+        const sessionId = this.sessions.get(ws);
+        console.log(
+          `Client disconnected from VCCP WebSocket server${
+            sessionId ? ` (session: ${sessionId})` : ""
+          }`
+        );
+
         this.connectedClients.delete(ws);
+        if (sessionId) {
+          this.sessions.delete(ws);
+        }
       });
 
       ws.on("error", (error) => {
+        const sessionId = this.sessions.get(ws);
         console.error("WebSocket client error:", error);
+
         this.connectedClients.delete(ws);
+        if (sessionId) {
+          this.sessions.delete(ws);
+        }
       });
     });
   }
 
-  private handleMessage(data: unknown) {
-    console.log("Received raw message:", data);
+  private handleMessage(data: unknown, ws: WebSocket, sessionId: string) {
+    console.log("Received raw message:", data, sessionId);
 
     const messageValidation = VCCPMessageSchema.safeParse(data);
     if (!messageValidation.success) {
@@ -51,67 +78,66 @@ class VCCPServer {
     console.log("Validated message:", message);
 
     if (message.type === "perception") {
-      this.latestPerceptions.set(message.category, message);
-      console.log("Stored perception data:", message.category);
+      const agent = this.agents.get(sessionId);
+      if (!agent) {
+        return;
+      }
+      agent.latestPerceptions.set(message.category, message);
+      console.log("Stored perception data:", message.category, sessionId);
+    }
+    if (message.type === "system" && message.category === "capability") {
+      this.agents.set(sessionId, {
+        ws,
+        capability: message,
+        latestPerceptions: new Map(),
+      });
     }
   }
 
-  async sendAction(action: VCCPMessage) {
-    if (this.connectedClients.size === 0) {
+  async sendActionToSession(sessionId: string, action: VCCPMessage) {
+    const agent = this.agents.get(sessionId);
+
+    if (!agent) {
       return {
         success: false,
-        message: "No clients connected",
+        message: `No client connected for session: ${sessionId}`,
+      };
+    }
+
+    const client = agent.ws;
+
+    if (client.readyState !== client.OPEN) {
+      this.sessions.delete(client);
+      this.agents.delete(sessionId);
+      this.connectedClients.delete(client);
+      return {
+        success: false,
+        message: `Client for session ${sessionId} is not connected`,
       };
     }
 
     try {
-      this.broadcastToClients(action);
+      client.send(JSON.stringify(action));
+      console.log(`Action sent to session ${sessionId}:`, action);
       return {
         success: true,
-        message: "Action sent to all connected clients",
+        message: `Action sent to session: ${sessionId}`,
       };
     } catch (error) {
       return {
         success: false,
-        message: `Failed to send action: ${error}`,
+        message: `Failed to send action to session ${sessionId}: ${error}`,
       };
     }
   }
 
-  getLatestPerception(category: string): VCCPMessage | null {
-    return this.latestPerceptions.get(category) || null;
-  }
-
-  broadcastToClients(message: VCCPMessage): void {
-    if (this.connectedClients.size === 0) {
-      console.warn("Cannot send event: No clients connected");
-      return;
+  getLatestPerception(sessionId: string, category: string): VCCPMessage | null {
+    const agent = this.agents.get(sessionId);
+    if (!agent) {
+      return null;
     }
-
-    const messageStr = JSON.stringify(message);
-    const deadClients = new Set<WebSocket>();
-
-    this.connectedClients.forEach((client) => {
-      if (client.readyState === client.OPEN) {
-        try {
-          client.send(messageStr);
-        } catch (error) {
-          console.error("Failed to send message to client:", error);
-          deadClients.add(client);
-        }
-      } else {
-        deadClients.add(client);
-      }
-    });
-
-    deadClients.forEach((client) => {
-      this.connectedClients.delete(client);
-    });
-
-    console.log(
-      `Event sent to ${this.connectedClients.size} clients:`,
-      message
-    );
+    const perception = agent.latestPerceptions.get(category);
+    return perception ?? null;
   }
 }
 
@@ -132,8 +158,19 @@ server.tool(
   {
     category: z.string().describe("知覚情報のカテゴリ"),
   },
-  async ({ category }) => {
-    const data = vccpServer.getLatestPerception(category);
+  async ({ category }, { sessionId }) => {
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `session idが無効です`,
+          },
+        ],
+      };
+    }
+
+    const data = vccpServer.getLatestPerception(sessionId, category);
 
     return {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
@@ -150,7 +187,7 @@ server.tool(
     z: z.number().describe("Z座標"),
     speed: z.number().optional().default(1.0).describe("移動速度"),
   },
-  async ({ x, y, z, speed }) => {
+  async ({ x, y, z, speed }, { sessionId }) => {
     const actionData = {
       type: "action",
       category: "movement",
@@ -173,7 +210,21 @@ server.tool(
       };
     }
 
-    const result = await vccpServer.sendAction(validation.data);
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `session idが無効です`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendActionToSession(
+      sessionId,
+      validation.data
+    );
 
     return {
       content: [
@@ -196,7 +247,7 @@ server.tool(
     y: z.number().describe("Y座標"),
     z: z.number().describe("Z座標"),
   },
-  async ({ x, y, z }) => {
+  async ({ x, y, z }, { sessionId }) => {
     const actionData = {
       type: "action",
       category: "lookAt",
@@ -221,7 +272,21 @@ server.tool(
       };
     }
 
-    const result = await vccpServer.sendAction(validation.data);
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `session idが無効です`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendActionToSession(
+      sessionId,
+      validation.data
+    );
 
     return {
       content: [
@@ -244,7 +309,7 @@ server.tool(
       .enum(["happy", "angry", "sad", "neutral"])
       .describe("表情プリセット"),
   },
-  async ({ preset }) => {
+  async ({ preset }, { sessionId }) => {
     const actionData = {
       type: "action",
       category: "expression",
@@ -264,7 +329,21 @@ server.tool(
       };
     }
 
-    const result = await vccpServer.sendAction(validation.data);
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `session idが無効です`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendActionToSession(
+      sessionId,
+      validation.data
+    );
 
     return {
       content: [
@@ -285,7 +364,7 @@ server.tool(
   {
     bvh: z.string().describe("Base64エンコードされたBVHデータ"),
   },
-  async ({ bvh }) => {
+  async ({ bvh }, { sessionId }) => {
     const actionData = {
       type: "action",
       category: "anim",
@@ -305,7 +384,21 @@ server.tool(
       };
     }
 
-    const result = await vccpServer.sendAction(validation.data);
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `session idが無効です`,
+          },
+        ],
+      };
+    }
+
+    const result = await vccpServer.sendActionToSession(
+      sessionId,
+      validation.data
+    );
 
     return {
       content: [
@@ -340,11 +433,13 @@ wsApp.post("/mcp", async (req, res) => {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId) => {
         transports[sessionId] = transport;
+        console.log(`MCP session initialized: ${sessionId}`);
       },
     });
 
     transport.onclose = () => {
       if (transport.sessionId) {
+        console.log(`MCP session closed: ${transport.sessionId}`);
         delete transports[transport.sessionId];
       }
     };
