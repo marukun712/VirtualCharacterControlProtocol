@@ -18,6 +18,15 @@ export default function VCCPClient() {
   useEffect(() => {
     if (!canvasRef.current) return;
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get("sessionId");
+
+    if (!sessionId) {
+      return;
+    }
+
+    const ws = new WebSocket(`ws://localhost:3000/vccp/${sessionId}`);
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x212121);
 
@@ -71,10 +80,56 @@ export default function VCCPClient() {
       (error) => console.error("Loading error:", error)
     );
 
-    const ws = new WebSocket("ws://localhost:3000/vccp");
-
     ws.onopen = () => {
-      console.log("WebSocket connected");
+      console.log(`WebSocket connected with session ID: ${sessionId}`);
+
+      const capabilityMessage = {
+        type: "system",
+        category: "capability",
+        timestamp: new Date().toISOString(),
+        data: {
+          actions: [
+            {
+              type: "action",
+              category: "movement",
+              timestamp: "2024-01-01T00:00:00Z",
+              data: {
+                target: {
+                  x: 2.0,
+                  y: 0.0,
+                  z: 3.0,
+                },
+                speed: 1.0,
+              },
+            },
+            {
+              type: "action",
+              category: "lookAt",
+              timestamp: "2024-01-01T00:00:00Z",
+              data: {
+                target: {
+                  type: "position|object",
+                  value: {
+                    x: 1.0,
+                    y: 1.6,
+                    z: 2.0,
+                  },
+                },
+              },
+            },
+            {
+              type: "action",
+              category: "expression",
+              timestamp: "2024-01-01T00:00:00Z",
+              data: {
+                preset: "string",
+              },
+            },
+          ],
+        },
+      };
+
+      ws.send(JSON.stringify(capabilityMessage));
     };
 
     ws.onmessage = (event) => {
@@ -241,7 +296,7 @@ function handleVCCPMessage(message: VCCPMessage, vrm: VRM | null) {
 
       switch (message.category) {
         case "movement":
-          const { target, speed } = message.data;
+          const { target } = message.data;
           if (target) {
             vrm.scene.position.set(target.x, target.y, target.z);
           }
@@ -256,18 +311,11 @@ function handleVCCPMessage(message: VCCPMessage, vrm: VRM | null) {
 
         case "expression":
           if (message.data.preset && vrm.expressionManager) {
-            // Reset all expressions
             Object.keys(vrm.expressionManager.expressionMap).forEach((key) => {
               vrm.expressionManager?.setValue(key, 0);
             });
-            // Set new expression
             vrm.expressionManager.setValue(message.data.preset, 1.0);
           }
-          break;
-
-        case "anim":
-          console.log("Animation BVH received:", message.data.bvh);
-          // BVHアニメーション処理は今回は実装をスキップ
           break;
       }
       break;

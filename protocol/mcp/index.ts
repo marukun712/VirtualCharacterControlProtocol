@@ -11,22 +11,28 @@ import type { WebSocket } from "ws";
 class VCCPServer {
   private connectedClients: Set<WebSocket> = new Set();
 
-  private agents: Map<string, Agent> = new Map();
+  private agents: Map<string, Agent | null> = new Map();
   private sessions: Map<WebSocket, string> = new Map();
 
   setupWebSocketRoutes(app: expressWs.Application): void {
-    app.ws("/vccp", (ws: WebSocket, req) => {
-      const sessionId = req.headers["mcp-session-id"] as string | undefined;
-      console.log(
-        `Client connected to VCCP WebSocket server${
-          sessionId ? ` with session: ${sessionId}` : ""
-        }`
-      );
+    app.ws("/vccp/:id", (ws: WebSocket, req) => {
+      const sessionId = req.params.id;
 
       if (!sessionId) {
+        console.error("WebSocket connection attempted without session ID");
+        ws.close(1008, "Session ID required");
         return;
       }
 
+      if (!this.agents.has(sessionId)) {
+        console.error(
+          `WebSocket connection attempted with unregistered session ID: ${sessionId}`
+        );
+        ws.close(1008, "Invalid session ID");
+        return;
+      }
+
+      console.log(`WebSocket client connected with session ID: ${sessionId}`);
       this.connectedClients.add(ws);
       this.sessions.set(ws, sessionId);
 
@@ -40,29 +46,28 @@ class VCCPServer {
       });
 
       ws.on("close", () => {
-        const sessionId = this.sessions.get(ws);
-        console.log(
-          `Client disconnected from VCCP WebSocket server${
-            sessionId ? ` (session: ${sessionId})` : ""
-          }`
-        );
-
+        console.log(`Client disconnected from session: ${sessionId}`);
         this.connectedClients.delete(ws);
-        if (sessionId) {
-          this.sessions.delete(ws);
-        }
+        this.sessions.delete(ws);
       });
 
       ws.on("error", (error) => {
-        const sessionId = this.sessions.get(ws);
-        console.error("WebSocket client error:", error);
-
+        console.error(
+          `WebSocket client error for session ${sessionId}:`,
+          error
+        );
         this.connectedClients.delete(ws);
-        if (sessionId) {
-          this.sessions.delete(ws);
-        }
+        this.sessions.delete(ws);
       });
     });
+  }
+
+  registerAgent(sessionId: string) {
+    this.agents.set(sessionId, null);
+  }
+
+  getAgent(sessionId: string) {
+    return this.agents.get(sessionId) ?? null;
   }
 
   private handleMessage(data: unknown, ws: WebSocket, sessionId: string) {
@@ -139,6 +144,15 @@ class VCCPServer {
     const perception = agent.latestPerceptions.get(category);
     return perception ?? null;
   }
+
+  getCapability(sessionId: string): Record<string, any> | null {
+    const agent = this.agents.get(sessionId);
+    if (!agent) {
+      return null;
+    }
+    const perception = agent.capability.data;
+    return perception;
+  }
 }
 
 const vccpServer = new VCCPServer();
@@ -153,6 +167,72 @@ const server = new McpServer({
 });
 
 server.tool(
+  "register-agent",
+  "新しいagentを登録します。WebSocketクライアントはこのSession IDを使って接続する必要があります。",
+  {},
+  async ({}, { sessionId }) => {
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `SessionIDが無効です`,
+          },
+        ],
+      };
+    }
+
+    const agent = vccpServer.getAgent(sessionId);
+
+    if (agent) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `agentが既に登録されています`,
+          },
+        ],
+      };
+    }
+
+    vccpServer.registerAgent(sessionId);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Agentは正常に登録されました。 Session ID: ${sessionId}`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "get-capability",
+  "キャラクターが使用可能なactionの定義を取得します。",
+  {},
+  async ({}, { sessionId }) => {
+    if (!sessionId) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `SessionIDが無効です`,
+          },
+        ],
+      };
+    }
+
+    const data = vccpServer.getCapability(sessionId);
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
   "get-perception",
   "知覚情報を取得します",
   {
@@ -164,7 +244,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `session idが無効です`,
+            text: `SessionIDが無効です`,
           },
         ],
       };
@@ -179,32 +259,19 @@ server.tool(
 );
 
 server.tool(
-  "move-character",
-  "VRMキャラクターを指定位置に移動させます",
+  "play-action",
+  "VRMキャラクターにアクションをさせます。キャラクターが可能なactionの定義を確認するには、get-capabilityツールを使用してください。",
   {
-    x: z.number().describe("X座標"),
-    y: z.number().describe("Y座標"),
-    z: z.number().describe("Z座標"),
-    speed: z.number().optional().default(1.0).describe("移動速度"),
+    action: z.record(z.any()),
   },
-  async ({ x, y, z, speed }, { sessionId }) => {
-    const actionData = {
-      type: "action",
-      category: "movement",
-      timestamp: new Date().toISOString(),
-      data: {
-        target: { x, y, z },
-        speed,
-      },
-    };
-
-    const validation = VCCPMessageSchema.safeParse(actionData);
+  async ({ action }, { sessionId }) => {
+    const validation = VCCPMessageSchema.safeParse(action);
     if (!validation.success) {
       return {
         content: [
           {
             type: "text",
-            text: `無効な移動パラメータです: ${validation.error}`,
+            text: `無効なスキーマ: ${validation.error}`,
           },
         ],
       };
@@ -215,7 +282,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `session idが無効です`,
+            text: `SessionIDが無効です`,
           },
         ],
       };
@@ -231,182 +298,8 @@ server.tool(
         {
           type: "text",
           text: result.success
-            ? `キャラクターを座標(${x}, ${y}, ${z})に移動させました`
-            : `移動に失敗しました: ${result.message}`,
-        },
-      ],
-    };
-  }
-);
-
-server.tool(
-  "look-at",
-  "VRMキャラクターの視線を指定位置に向けます",
-  {
-    x: z.number().describe("X座標"),
-    y: z.number().describe("Y座標"),
-    z: z.number().describe("Z座標"),
-  },
-  async ({ x, y, z }, { sessionId }) => {
-    const actionData = {
-      type: "action",
-      category: "lookAt",
-      timestamp: new Date().toISOString(),
-      data: {
-        target: {
-          type: "position",
-          value: { x, y, z },
-        },
-      },
-    };
-
-    const validation = VCCPMessageSchema.safeParse(actionData);
-    if (!validation.success) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `無効な視線制御パラメータです: ${validation.error}`,
-          },
-        ],
-      };
-    }
-
-    if (!sessionId) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `session idが無効です`,
-          },
-        ],
-      };
-    }
-
-    const result = await vccpServer.sendActionToSession(
-      sessionId,
-      validation.data
-    );
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: result.success
-            ? `キャラクターの視線を座標(${x}, ${y}, ${z})に向けました`
-            : `視線制御に失敗しました: ${result.message}`,
-        },
-      ],
-    };
-  }
-);
-
-server.tool(
-  "set-expression",
-  "VRMキャラクターの表情を設定します",
-  {
-    preset: z
-      .enum(["happy", "angry", "sad", "neutral"])
-      .describe("表情プリセット"),
-  },
-  async ({ preset }, { sessionId }) => {
-    const actionData = {
-      type: "action",
-      category: "expression",
-      timestamp: new Date().toISOString(),
-      data: { preset },
-    };
-
-    const validation = VCCPMessageSchema.safeParse(actionData);
-    if (!validation.success) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `無効な表情パラメータです: ${validation.error}`,
-          },
-        ],
-      };
-    }
-
-    if (!sessionId) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `session idが無効です`,
-          },
-        ],
-      };
-    }
-
-    const result = await vccpServer.sendActionToSession(
-      sessionId,
-      validation.data
-    );
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: result.success
-            ? `キャラクターの表情を「${preset}」に設定しました`
-            : `表情制御に失敗しました: ${result.message}`,
-        },
-      ],
-    };
-  }
-);
-
-server.tool(
-  "play-animation",
-  "VRMキャラクターにBVHアニメーションを再生させます",
-  {
-    bvh: z.string().describe("Base64エンコードされたBVHデータ"),
-  },
-  async ({ bvh }, { sessionId }) => {
-    const actionData = {
-      type: "action",
-      category: "anim",
-      timestamp: new Date().toISOString(),
-      data: { bvh },
-    };
-
-    const validation = VCCPMessageSchema.safeParse(actionData);
-    if (!validation.success) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `無効なアニメーションパラメータです: ${validation.error}`,
-          },
-        ],
-      };
-    }
-
-    if (!sessionId) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `session idが無効です`,
-          },
-        ],
-      };
-    }
-
-    const result = await vccpServer.sendActionToSession(
-      sessionId,
-      validation.data
-    );
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: result.success
-            ? "キャラクターにアニメーションを再生させました"
-            : `アニメーション再生に失敗しました: ${result.message}`,
+            ? `アクションを実行しました。`
+            : `アクションの実行に失敗しました: ${result.message}`,
         },
       ],
     };

@@ -17,11 +17,16 @@ bun run index.ts  # Port 3000で HTTP (MCP) + WebSocket 統合サーバー起動
 ```bash
 cd protocol/client
 bun install
-bun run dev     # Vite開発サーバー起動
+bun run dev     # Vite開発サーバー起動（http://localhost:5173）
 bun run build   # 本番ビルド（クライアント＋サーバー両方）
 bun run preview # Wrangler経由でプレビュー
 bun run deploy  # Cloudflare Workersにデプロイ
 ```
+
+### 開発時の起動順序
+1. MCPサーバーを先に起動（Port 3000）
+2. VRMクライアント開発サーバーを起動（Port 5173）
+3. ブラウザで `http://localhost:5173?sessionId=<session-id>` にアクセス
 
 ## アーキテクチャ概要
 
@@ -75,16 +80,18 @@ bun run deploy  # Cloudflare Workersにデプロイ
 ## 実装状況と接続方法
 
 ### MCPツール（実装済み）
-MCPサーバーは以下のVCCP v1.0準拠ツールを提供:
+MCPサーバーは以下のツールを提供:
 
-**キャラクター制御ツール:**
-- `get-perception`: 知覚情報の取得
-- `move-character`: キャラクター移動制御（x,y,z座標指定）
-- `look-at`: 視線制御（x,y,z座標またはターゲット指定）
-- `set-expression`: 表情制御（現在は4種類のプリセット: happy, angry, sad, neutral）
-- `play-animation`: BVHアニメーション再生（base64エンコードされたBVHデータ）
+**基本ツール:**
+- `register-agent`: 新しいagentを登録（Session IDを自動生成）
+- `get-capability`: キャラクターが使用可能なactionの定義を取得
+- `get-perception`: 知覚情報の取得（categoryパラメータ必須）
+- `play-action`: VRMキャラクターにアクションを実行（VCCPメッセージ形式）
 
-**注意**: プロトコル仕様には追加のクライアント通信ツール（send-system-message, send-perception-update, send-custom-event, get-connected-clients）が定義されていますが、現在のMCPサーバー実装では未実装です。
+**サポートされるアクション:**
+- `movement`: キャラクター移動制御（target: {x, y, z}座標指定）
+- `lookAt`: 視線制御（target.value: {x, y, z}座標指定）
+- `expression`: 表情制御（preset: 文字列指定）
 
 ### VRM Client機能（実装済み）
 - Three.js + VRMLoader による3Dキャラクター表示
@@ -94,13 +101,34 @@ MCPサーバーは以下のVCCP v1.0準拠ツールを提供:
 
 ### 接続フロー
 1. MCP Server起動（Port 3000でHTTP + WebSocket統合サーバー起動）
-2. VRM ClientがWebSocketエンドポイント（`ws://localhost:3000/vccp`）に接続
-3. LLMがMCP経由でVCCPメッセージを送信
-4. MCP ServerがWebSocket経由で接続されたVRMクライアントにメッセージをブロードキャスト
-5. VRMクライアントがリアルタイムでキャラクター制御を実行
+2. LLMがMCP経由で`register-agent`ツールを実行してSession IDを取得
+3. VRM ClientがSession IDを使用してWebSocketエンドポイント（`ws://localhost:3000/vccp/:sessionId`）に接続
+4. クライアントが`capability`メッセージをサーバーに送信
+5. LLMが`play-action`ツールでVCCPメッセージを送信
+6. MCP ServerがWebSocket経由で対象セッションのクライアントにメッセージを送信
+7. VRMクライアントがリアルタイムでキャラクター制御を実行
 
 ### 重要な実装ポイント
 - Express + express-wsによる統合アーキテクチャで1つのポートで両方のサービスを提供
+- Session IDベースのクライアント管理（セッション毎に個別通信）
 - WebSocketクライアントの接続/切断管理は自動化されている
-- 全ての制御命令は接続中の全クライアントにブロードキャストされる
-- `protocol/mcp/types.ts` にVCCPメッセージの型定義が含まれている
+- VCCPメッセージ型定義が2箇所に存在：`protocol/mcp/types.ts` と `protocol/client/app/types.ts`
+- クライアントURLパラメータで`sessionId`を指定: `?sessionId=<session-id>`
+
+### ファイル構造の理解
+- **protocol/mcp/index.ts**: MCPサーバーのメインファイル（4つのMCPツール定義）
+- **protocol/client/app/islands/vccp-client.tsx**: VRMクライアントのメインコンポーネント
+- **protocol/client/app/routes/index.tsx**: ルートページ（VCCPClientを描画）
+- **VRMファイル**: `protocol/client/public/AliciaSolid-1.0.vrm` を読み込み
+
+## デバッグとトラブルシューティング
+
+### よくある問題
+- **WebSocket接続エラー**: Session IDが未登録またはURL形式が間違っている
+- **メッセージ受信エラー**: VCCPMessageSchemaのZod検証が失敗している
+- **アクション実行エラー**: VRMモデル読み込み前にアクションが送信されている
+
+### デバッグ方法
+- MCPサーバーのコンソールログでWebSocket接続状況を確認
+- ブラウザのコンソールログでVCCPメッセージ受信状況を確認
+- `get-capability`ツールでクライアントの能力情報を確認
