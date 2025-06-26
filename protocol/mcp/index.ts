@@ -136,12 +136,12 @@ class VCCPServer {
     }
   }
 
-  getLatestPerception(sessionId: string, category: string): VCCPMessage | null {
+  getLatestPerception(sessionId: string): VCCPMessage[] | null {
     const agent = this.agents.get(sessionId);
     if (!agent) {
       return null;
     }
-    const perception = agent.latestPerceptions.get(category);
+    const perception = [...agent.latestPerceptions.values()];
     return perception ?? null;
   }
 
@@ -235,10 +235,8 @@ server.tool(
 server.tool(
   "get-perception",
   "知覚情報を取得します",
-  {
-    category: z.string().describe("知覚情報のカテゴリ"),
-  },
-  async ({ category }, { sessionId }) => {
+  {},
+  async ({}, { sessionId }) => {
     if (!sessionId) {
       return {
         content: [
@@ -250,7 +248,7 @@ server.tool(
       };
     }
 
-    const data = vccpServer.getLatestPerception(sessionId, category);
+    const data = vccpServer.getLatestPerception(sessionId);
 
     return {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],

@@ -59,10 +59,6 @@ export default function VCCPClient() {
     directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
 
-    createRoom(scene);
-
-    createFurniture(scene);
-
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
@@ -130,6 +126,9 @@ export default function VCCPClient() {
       };
 
       ws.send(JSON.stringify(capabilityMessage));
+
+      createRoom(scene);
+      createFurniture(scene, ws);
     };
 
     ws.onmessage = (event) => {
@@ -229,7 +228,7 @@ function createRoom(scene: THREE.Scene) {
   scene.add(ceiling);
 }
 
-function createFurniture(scene: THREE.Scene) {
+function createFurniture(scene: THREE.Scene, ws: WebSocket) {
   const tableGeometry = new THREE.BoxGeometry(1.5, 0.1, 0.8);
   const tableMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
   const table = new THREE.Mesh(tableGeometry, tableMaterial);
@@ -260,6 +259,22 @@ function createFurniture(scene: THREE.Scene) {
   chair.position.set(0, 0.5, 0.5);
   chair.castShadow = true;
   scene.add(chair);
+
+  const chairMessage = {
+    type: "perception",
+    category: "object",
+    timestamp: "2024-01-01T00:00:00Z",
+    data: {
+      name: "chair",
+      position: {
+        x: chair.position.x,
+        y: chair.position.y,
+        z: chair.position.z,
+      },
+    },
+  };
+
+  ws.send(JSON.stringify(chairMessage));
 
   const backrestGeometry = new THREE.BoxGeometry(0.5, 0.6, 0.05);
   const backrest = new THREE.Mesh(backrestGeometry, chairMaterial);
