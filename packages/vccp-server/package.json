@@ -1,0 +1,20 @@
+{
+  "name": "@vccp/server",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "express": "^5.1.0",
+    "express-ws": "^5.0.2",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.3",
+    "@types/express-ws": "^3.0.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

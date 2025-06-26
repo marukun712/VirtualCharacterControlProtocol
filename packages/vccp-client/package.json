@@ -1,0 +1,15 @@
+{
+  "name": "@vccp/client",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

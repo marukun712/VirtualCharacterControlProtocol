@@ -1,0 +1,8 @@
+{
+  "name": "vccp-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "example/*"
+  ]
+}

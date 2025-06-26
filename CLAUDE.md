@@ -28,6 +28,20 @@ bun run deploy  # Cloudflare Workersにデプロイ
 2. VRMクライアント開発サーバーを起動（Port 5173）
 3. ブラウザで `http://localhost:5173?sessionId=<session-id>` にアクセス
 
+### テストとビルド
+現在、専用のテストフレームワークは設定されていません。テストが必要な場合は、Bunの標準テスト機能または個別のテストセットアップが必要です。
+
+TypeScriptの型チェック:
+```bash
+# MCP Server
+cd protocol/mcp
+bun run tsc --noEmit  # tsconfig.jsonがある場合
+
+# VRM Client  
+cd protocol/client
+bun run tsc --noEmit  # tsconfig.jsonがある場合
+```
+
 ## アーキテクチャ概要
 
 このプロジェクトは VCCP (VRM Character Control Protocol) の実装で、以下の2つの主要コンポーネントから構成されている：
@@ -120,6 +134,11 @@ MCPサーバーは以下のツールを提供:
 - **protocol/client/app/islands/vccp-client.tsx**: VRMクライアントのメインコンポーネント
 - **protocol/client/app/routes/index.tsx**: ルートページ（VCCPClientを描画）
 - **VRMファイル**: `protocol/client/public/AliciaSolid-1.0.vrm` を読み込み
+
+### 設定ファイル
+- **protocol/client/vite.config.ts**: Vite設定（HonoX + Cloudflare Workers対応）
+- **protocol/client/tsconfig.json**: TypeScript設定（クライアント用）
+- **protocol/mcp/tsconfig.json**: TypeScript設定（サーバー用）
 
 ## デバッグとトラブルシューティング
 

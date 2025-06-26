@@ -3,16 +3,16 @@ import * as THREE from "three";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { VCCPMessage, VCCPMessageSchema } from "../types";
+import { VCCPClient, type VCCPMessage } from "@vccp/client";
 
-export default function VCCPClient() {
+export default function VCCPClientComponent() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     vrm: VRM | null;
-    ws: WebSocket | null;
+    vccpClient: VCCPClient | null;
   }>(null);
 
   useEffect(() => {
@@ -24,8 +24,6 @@ export default function VCCPClient() {
     if (!sessionId) {
       return;
     }
-
-    const ws = new WebSocket(`ws://localhost:3000/vccp/${sessionId}`);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x212121);
@@ -76,15 +74,17 @@ export default function VCCPClient() {
       (error) => console.error("Loading error:", error)
     );
 
-    ws.onopen = () => {
-      console.log(`WebSocket connected with session ID: ${sessionId}`);
+    const vccpClient = new VCCPClient(
+      {
+        serverUrl: "ws://localhost:3000",
+        sessionId,
+        autoConnect: true,
+      },
+      {
+        onConnected: () => {
+          console.log("VCCP Client connected");
 
-      const capabilityMessage = {
-        type: "system",
-        category: "capability",
-        timestamp: new Date().toISOString(),
-        data: {
-          actions: [
+          const actions = [
             {
               type: "action",
               category: "movement",
@@ -121,30 +121,24 @@ export default function VCCPClient() {
                 preset: "string",
               },
             },
-          ],
+          ];
+
+          vccpClient.sendCapabilityMessage(actions);
+
+          createRoom(scene);
+          createFurniture(scene, vccpClient);
         },
-      };
-
-      ws.send(JSON.stringify(capabilityMessage));
-
-      createRoom(scene);
-      createFurniture(scene, ws);
-    };
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      const parsed = VCCPMessageSchema.safeParse(message);
-      if (!parsed.success) {
-        console.error("Invalid VCCP message format:", parsed.error);
-        return;
+        onDisconnected: () => {
+          console.log("VCCP Client disconnected");
+        },
+        onMessageReceived: (message: VCCPMessage) => {
+          handleVCCPMessage(message, vrm);
+        },
+        onError: (error: Error) => {
+          console.error("VCCP Client error:", error);
+        },
       }
-
-      handleVCCPMessage(message, vrm);
-    };
-
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-    };
+    );
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -165,12 +159,12 @@ export default function VCCPClient() {
     };
     window.addEventListener("resize", handleResize);
 
-    sceneRef.current = { scene, camera, renderer, vrm, ws };
+    sceneRef.current = { scene, camera, renderer, vrm, vccpClient };
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      if (ws) {
-        ws.close();
+      if (vccpClient) {
+        vccpClient.disconnect();
       }
       renderer.dispose();
     };
@@ -228,7 +222,7 @@ function createRoom(scene: THREE.Scene) {
   scene.add(ceiling);
 }
 
-function createFurniture(scene: THREE.Scene, ws: WebSocket) {
+function createFurniture(scene: THREE.Scene, vccpClient: VCCPClient) {
   const tableGeometry = new THREE.BoxGeometry(1.5, 0.1, 0.8);
   const tableMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
   const table = new THREE.Mesh(tableGeometry, tableMaterial);
@@ -260,21 +254,14 @@ function createFurniture(scene: THREE.Scene, ws: WebSocket) {
   chair.castShadow = true;
   scene.add(chair);
 
-  const chairMessage = {
-    type: "perception",
-    category: "object",
-    timestamp: "2024-01-01T00:00:00Z",
-    data: {
-      name: "chair",
-      position: {
-        x: chair.position.x,
-        y: chair.position.y,
-        z: chair.position.z,
-      },
+  vccpClient.sendPerceptionMessage("object", {
+    name: "chair",
+    position: {
+      x: chair.position.x,
+      y: chair.position.y,
+      z: chair.position.z,
     },
-  };
-
-  ws.send(JSON.stringify(chairMessage));
+  });
 
   const backrestGeometry = new THREE.BoxGeometry(0.5, 0.6, 0.05);
   const backrest = new THREE.Mesh(backrestGeometry, chairMaterial);
