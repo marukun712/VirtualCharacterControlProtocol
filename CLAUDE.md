@@ -6,16 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発コマンド
 
-### MCP Server（MCPプロトコル実装 + WebSocketサーバー統合）
+### MCPサーバー実装例
 ```bash
-cd protocol/mcp
+cd example/mcp
 bun install
 bun run index.ts  # Port 3000で HTTP (MCP) + WebSocket 統合サーバー起動
 ```
 
-### VRM Client（HonoX + Three.js）
+### VRMクライアント実装例（HonoX + Three.js）
 ```bash
-cd protocol/client
+cd example/client
 bun install
 bun run dev     # Vite開発サーバー起動（http://localhost:5173）
 bun run build   # 本番ビルド（クライアント＋サーバー両方）
@@ -23,9 +23,15 @@ bun run preview # Wrangler経由でプレビュー
 bun run deploy  # Cloudflare Workersにデプロイ
 ```
 
+### ワークスペース全体
+```bash
+# ルートディレクトリで全パッケージのインストール
+bun install
+```
+
 ### 開発時の起動順序
-1. MCPサーバーを先に起動（Port 3000）
-2. VRMクライアント開発サーバーを起動（Port 5173）
+1. MCPサーバー実装例を先に起動（Port 3000）
+2. VRMクライアント実装例の開発サーバーを起動（Port 5173）
 3. ブラウザで `http://localhost:5173?sessionId=<session-id>` にアクセス
 
 ### テストとビルド
@@ -33,38 +39,56 @@ bun run deploy  # Cloudflare Workersにデプロイ
 
 TypeScriptの型チェック:
 ```bash
-# MCP Server
-cd protocol/mcp
-bun run tsc --noEmit  # tsconfig.jsonがある場合
+# MCPサーバー実装例
+cd example/mcp
+bun run tsc --noEmit
 
-# VRM Client  
-cd protocol/client
-bun run tsc --noEmit  # tsconfig.jsonがある場合
+# VRMクライアント実装例
+cd example/client
+bun run tsc --noEmit
+
+# ライブラリパッケージ
+cd packages/vccp-server
+bun run tsc --noEmit
+
+cd packages/vccp-client
+bun run tsc --noEmit
 ```
 
 ## アーキテクチャ概要
 
-このプロジェクトは VCCP (VRM Character Control Protocol) の実装で、以下の2つの主要コンポーネントから構成されている：
+このプロジェクトは VCCP (VRM Character Control Protocol) のライブラリ実装で、Bunワークスペースで構成されている：
 
-### 1. MCP Server (`protocol/mcp/`)
-- Model Context Protocol (MCP) SDK を使用したLLM連携サーバー
-- **統合アーキテクチャ**: 1つのExpressアプリケーションでHTTPとWebSocketを統合提供
-  - Port 3000: HTTP MCP サーバー（LLMとの通信）+ WebSocket サーバー（VRMクライアントとの通信）
-- VCCP v1.0に準拠した5つのツールを提供（実装済み）
-- WebSocketクライアント管理とメッセージブロードキャスト機能
+### ライブラリパッケージ (`packages/`)
 
-### 2. VRM Client (`protocol/client/`)
+#### 1. VCCP Server (`packages/vccp-server/`)
+- Model Context Protocol (MCP) SDK を使用したLLM連携サーバーライブラリ
+- **統合アーキテクチャ**: VCCPServerクラスでHTTPとWebSocketを1つのポートで統合提供
+- VCCP v1.0に準拠した4つのMCPツールを提供
+- Session IDベースのWebSocketクライアント管理機能
+
+#### 2. VCCP Client (`packages/vccp-client/`)
+- WebSocketクライアントライブラリ
+- VCCPメッセージの型定義とバリデーション機能
+- TypeScript/Zod対応
+
+### 実装例 (`example/`)
+
+#### 1. MCP Server例 (`example/mcp/`)
+- VCCPServerライブラリを使用したMCPサーバー実装
+- Port 3000でHTTP（MCP）+ WebSocket統合サーバー起動
+
+#### 2. VRM Client例 (`example/client/`)
 - HonoX + Three.js + @pixiv/three-vrm による3Dキャラクター表示
 - WebSocket経由でVCCPメッセージを受信しリアルタイムキャラクター制御
 - Cloudflare Workersへのデプロイメント対応
 - 室内環境の3D空間とインタラクション機能
-- エンドポイント: `ws://localhost:3000/vccp` に接続
 
 ### プロトコル仕様
-- `protocol.md` にVCCP v1.0の詳細仕様を記載
 - WebSocketベースの双方向リアルタイム通信
 - 知覚情報（perception）と制御命令（action）の定義
 - カスタム拡張可能な設計
+- VCCPMessageSchemaによるZodベースの型検証
 
 ### 技術スタック
 **共通:**
@@ -72,12 +96,16 @@ bun run tsc --noEmit  # tsconfig.jsonがある場合
 - Zod (Schema validation)
 - WebSocket for real-time communication
 
-**MCP Server:**
+**VCCPサーバーライブラリ (`packages/vccp-server/`):**
 - @modelcontextprotocol/sdk: ^1.13.0
 - Express: ^5.1.0
-- express-ws: ^5.0.2 (Express統合WebSocketサーバー)
+- express-ws: ^5.0.2
+- zod: ^3.25.67
 
-**VRM Client:**
+**VCCPクライアントライブラリ (`packages/vccp-client/`):**
+- zod: ^3.25.67
+
+**VRMクライアント実装例 (`example/client/`):**
 - HonoX: ^0.1.42 (Hono + JSX framework)
 - Three.js: ^0.170.0
 - @pixiv/three-vrm: ^3.1.0
@@ -86,9 +114,9 @@ bun run tsc --noEmit  # tsconfig.jsonがある場合
 - Wrangler: ^4.4.0 (Cloudflare Workers)
 
 ### 開発環境
-- Bunを実行環境として使用
+- Bunワークスペース構成
 - TypeScript strict mode有効
-- プロジェクトは2つの独立したパッケージとして構成
+- ライブラリパッケージ + 実装例の構成
 - Cloudflare Workersデプロイメント対応
 
 ## 実装状況と接続方法
@@ -123,22 +151,36 @@ MCPサーバーは以下のツールを提供:
 7. VRMクライアントがリアルタイムでキャラクター制御を実行
 
 ### 重要な実装ポイント
-- Express + express-wsによる統合アーキテクチャで1つのポートで両方のサービスを提供
+- VCCPServerクラスでExpress + express-wsによる統合アーキテクチャ（1ポートで両サービス提供）
 - Session IDベースのクライアント管理（セッション毎に個別通信）
 - WebSocketクライアントの接続/切断管理は自動化されている
-- VCCPメッセージ型定義が2箇所に存在：`protocol/mcp/types.ts` と `protocol/client/app/types.ts`
+- ライブラリとして分離されており、独自実装での利用が可能
 - クライアントURLパラメータで`sessionId`を指定: `?sessionId=<session-id>`
 
 ### ファイル構造の理解
-- **protocol/mcp/index.ts**: MCPサーバーのメインファイル（4つのMCPツール定義）
-- **protocol/client/app/islands/vccp-client.tsx**: VRMクライアントのメインコンポーネント
-- **protocol/client/app/routes/index.tsx**: ルートページ（VCCPClientを描画）
-- **VRMファイル**: `protocol/client/public/AliciaSolid-1.0.vrm` を読み込み
+
+**ライブラリパッケージ:**
+- **packages/vccp-server/index.ts**: VCCPServerクラス（MCPツール + WebSocket統合）
+- **packages/vccp-server/types.ts**: サーバー側型定義（SessionManager, Agent等）
+- **packages/vccp-client/index.ts**: WebSocketクライアントライブラリ
+- **packages/vccp-client/types.ts**: クライアント側型定義
+
+**実装例:**
+- **example/mcp/index.ts**: MCPサーバー実装例（VCCPServerライブラリ使用）
+- **example/client/app/islands/vccp-client.tsx**: VRMクライアントのメインコンポーネント
+- **example/client/app/routes/index.tsx**: ルートページ（VCCPClientを描画）
+- **VRMファイル**: `example/client/public/AliciaSolid-1.0.vrm` を読み込み
 
 ### 設定ファイル
-- **protocol/client/vite.config.ts**: Vite設定（HonoX + Cloudflare Workers対応）
-- **protocol/client/tsconfig.json**: TypeScript設定（クライアント用）
-- **protocol/mcp/tsconfig.json**: TypeScript設定（サーバー用）
+- **package.json**: Bunワークスペース設定（ルート）
+- **example/client/vite.config.ts**: Vite設定（HonoX + Cloudflare Workers対応）
+- **各パッケージ/tsconfig.json**: TypeScript strict設定
+
+### 重要な注意点
+- **型定義の重複**: VCCPMessageSchemaが3箇所に定義されている
+  - `packages/vccp-server/types.ts`
+  - `packages/vccp-client/types.ts`
+  - `example/client/app/types.ts`
 
 ## デバッグとトラブルシューティング
 

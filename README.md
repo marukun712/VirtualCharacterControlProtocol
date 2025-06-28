@@ -1,180 +1,235 @@
 # VCCP (Virtual Character Control Protocol) v1.0
 
-## 1. 概要
-
 VCCP (Virtual Character Control Protocol) は、LLM (Large Language Model) が MCP (Model Context Protocol) を経由して VRM モデルを人間らしく操作するためのプロトコルです。WebSocket を基盤とし、双方向のリアルタイム通信により、知覚情報の受信と制御命令の送信を実現します。
 
-### 1.1 設計原則
+## プロトコル仕様
 
-- **シンプルさ**: 最小限の仕様で最大限の表現力を実現
-- **拡張性**: ユーザーが独自の知覚情報や制御命令を追加可能
-- **リアルタイム性**: 低遅延での双方向通信
-- **人間らしさ**: 自然な動作とインタラクションの実現
+### 基本アーキテクチャ
 
-## 2. アーキテクチャ
+VCCPServer クラスが単一ポートで HTTP（MCP）と WebSocket サービスを統合提供：
 
-```
-┌─────────────┐     MCP      ┌──────────────────┐    WebSocket    ┌─────────────┐
-│     LLM     │◄────────────►│  VCCP Server     │◄───────────────►│   Client    │
-│             │              │   (Port 3000)    │                 │   (VRM)     │
-└─────────────┘              └──────────────────┘                 └─────────────┘
-```
+- **MCP エンドポイント**: `POST /mcp` - LLM との通信
+- **WebSocket エンドポイント**: `ws://host:port/vccp/:sessionId` - VRM クライアントとの通信
 
-### 2.1 統合アーキテクチャ
-
-VCCP サーバーは 1 つの Express アプリケーションで HTTP と WebSocket を統合提供します：
-
-- **Port 3000**: HTTP MCP サーバー（LLM との通信）+ WebSocket サーバー（VRM クライアントとの通信）
-- **エンドポイント**: `ws://localhost:3000/vccp/:sessionId`
-- **セッション管理**: Session ID によるクライアント管理とメッセージルーティング
-
-## 3. メッセージ仕様
-
-### 3.1 基本構造
-
-全ての VCCP メッセージは以下の基本構造に従います：
-
-```typescript
-interface VCCPMessage {
-  type: "perception" | "action" | "system";
-  category: string;
-  timestamp: string; // ISO 8601形式
-  data: Record<string, any>;
-}
-```
-
-### 3.2 メッセージタイプ
-
-#### 3.2.1 System メッセージ
-
-システム情報や能力情報の交換に使用されます。
-
-**Capability（能力情報）**
+### VCCP メッセージフォーマット
 
 ```typescript
 {
-  type: "system",
-  category: "capability",
-  timestamp: "2024-01-01T00:00:00Z",
-  data: {
-    actions: [
-      // サポートされるアクションの定義
+  type: "perception" | "action" | "system",
+  category: string,
+  timestamp: string, // ISO 8601形式
+  data: Record<string, any>
+}
+```
+
+### Capability（能力情報）
+
+クライアントが実行可能なアクションをサーバーに登録するためのメッセージです。
+
+```json
+{
+  "type": "system",
+  "category": "capability",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": {
+    "actions": [
+      {
+        "type": "action",
+        "category": "movement",
+        "data": { "target": { "x": 0.0, "y": 0.0, "z": 0.0 } }
+      },
+      {
+        "type": "action",
+        "category": "lookAt",
+        "data": { "target": { "type": "position", "value": { "x": 0.0, "y": 0.0, "z": 0.0 } } }
+      },
+      {
+        "type": "action",
+        "category": "expression",
+        "data": { "preset": "neutral" }
+      }
     ]
   }
 }
 ```
 
-#### 3.2.2 Perception メッセージ
+### Perception（知覚情報）
 
-クライアントからサーバーへの知覚情報送信に使用されます。
+クライアントがサーバーに送信する環境認識情報です。
 
-```typescript
+#### object（オブジェクト情報）
+
+```json
 {
-  type: "perception",
-  category: string, // 知覚情報のカテゴリ
-  timestamp: "2024-01-01T00:00:00Z",
-  data: {
-    // カテゴリ固有の知覚データ
+  "type": "perception",
+  "category": "object",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": {
+    "name": "chair",
+    "position": { "x": 0, "y": 0.5, "z": 0.5 },
+    "description": "木製の椅子"
   }
 }
 ```
 
-#### 3.2.3 Action メッセージ
+#### environment（環境情報）
 
-サーバーからクライアントへの制御命令送信に使用されます。
-
-**Movement（移動制御）**
-
-```typescript
+```json
 {
-  type: "action",
-  category: "movement",
-  timestamp: "2024-01-01T00:00:00Z",
-  data: {
-    target: {
-      x: number,
-      y: number,
-      z: number
-    },
-    speed?: number
+  "type": "perception",
+  "category": "environment",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": {
+    "lighting": "bright",
+    "temperature": "comfortable",
+    "description": "明るい室内環境"
   }
 }
 ```
 
-**LookAt（視線制御）**
+### アクション例
 
-```typescript
+以下はVRMキャラクターが実行可能なアクションの例です。クライアントはcapabilityメッセージでこれらのアクションを登録できます。
+
+#### movement（移動制御）
+
+```json
 {
-  type: "action",
-  category: "lookAt",
-  timestamp: "2024-01-01T00:00:00Z",
-  data: {
-    target: {
-      type: "position" | "object",
-      value: {
-        x: number,
-        y: number,
-        z: number
-      }
+  "type": "action",
+  "category": "movement",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": {
+    "target": { "x": 1.0, "y": 0.0, "z": 2.0 }
+  }
+}
+```
+
+#### lookAt（視線制御）
+
+```json
+{
+  "type": "action",
+  "category": "lookAt",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": {
+    "target": {
+      "type": "position",
+      "value": { "x": 1.0, "y": 1.6, "z": 2.0 }
     }
   }
 }
 ```
 
-**Expression（表情制御）**
+#### expression（表情制御）
 
-```typescript
+```json
 {
-  type: "action",
-  category: "expression",
-  timestamp: "2024-01-01T00:00:00Z",
-  data: {
-    preset: string // "happy", "angry", "sad", "neutral" など
+  "type": "action",
+  "category": "expression",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "data": {
+    "preset": "happy|sad|angry|surprised|neutral"
   }
 }
 ```
 
-## 4. MCP ツール仕様
+### MCP ツール
 
-### 4.1 実装済みツール
+| ツール名         | 説明                                         | パラメータ          |
+| ---------------- | -------------------------------------------- | ------------------- |
+| `register-agent` | 新しい agent を登録し Session ID を生成      | なし                |
+| `get-capability` | キャラクターの使用可能な action の定義を取得 | なし                |
+| `get-perception` | 知覚情報を取得                               | なし                |
+| `play-action`    | VRM キャラクターにアクションを実行           | action: VCCPMessage |
 
-**register-agent**
+### 通信フロー
 
-- 説明: 新しい agent を登録します。WebSocket クライアントはこの Session ID を使って接続する必要があります。
-- パラメータ: なし（Session ID は自動生成）
-- 戻り値: 登録された Session ID
+1. LLM が MCP 経由で`register-agent`ツールを実行して Session ID を取得
+2. VRM クライアントが Session ID を使用して WebSocket エンドポイントに接続
+3. クライアントが`capability`メッセージを送信してキャラクターの能力を登録
+4. LLM が`play-action`ツールで VCCP メッセージを送信
+5. サーバーが WebSocket 経由で対象セッションのクライアントにメッセージを送信
+6. VRM クライアントがリアルタイムでキャラクター制御を実行
 
-**get-capability**
+### ライブラリ構成
 
-- 説明: キャラクターが使用可能な action の定義を取得します。
-- パラメータ: なし（Session ID ヘッダーから取得）
-- 戻り値: 能力情報の JSON
+#### VCCPServer (`packages/vccp-server/`)
 
-**get-perception**
+- Model Context Protocol (MCP) SDK を使用した LLM 連携サーバーライブラリ
+- HTTP と WebSocket を 1 つのポートで統合提供
+- Session ID ベースの WebSocket クライアント管理
 
-- 説明: 知覚情報を取得します
-- パラメータ:
-  - `category`: 知覚情報のカテゴリ (string)
-- 戻り値: 指定されたカテゴリの最新知覚情報
+**使用法:**
 
-**play-action**
+```typescript
+import { VCCPServer } from "@vccp/server";
 
-- 説明: VRM キャラクターにアクションをさせます。
-- パラメータ:
-  - `action`: VCCP メッセージ形式のアクション (Record<string, any>)
-- 戻り値: 実行結果
+const server = new VCCPServer({
+  port: 3000,
+  host: "localhost",
+});
 
-### 4.2 セッション管理
+// サーバー起動
+await server.start();
 
-- **Session ID**: MCP セッション初期化時に自動生成
-- **WebSocket 接続**: `ws://localhost:3000/vccp/:sessionId`
-- **認証**: Session ID による接続認証
-- **ライフサイクル**: WebSocket 接続/切断の自動管理
+// サーバー停止
+await server.stop();
+```
 
-## 5. 接続フロー
+#### VCCPClient (`packages/vccp-client/`)
 
-1. **MCP セッション開始**: LLM が MCP サーバーに接続
-2. **Agent 登録**: `register-agent`ツールでセッションを登録
-3. **WebSocket 接続**: クライアントが Session ID を使用して接続
-4. **能力情報送信**: クライアントが`capability`メッセージを送信
-5. **通信開始**: LLM がアクションを送信、クライアントが実行
+- WebSocket クライアントライブラリ
+- VCCP メッセージの型定義とバリデーション機能
+- TypeScript/Zod 対応
+
+**使用法:**
+
+```typescript
+import { VCCPClient, type VCCPMessage } from "@vccp/client";
+
+// クライアント作成
+const client = new VCCPClient(
+  {
+    serverUrl: "ws://localhost:3000",
+    sessionId: "your-session-id",
+    autoConnect: true,
+  },
+  {
+    onConnected: () => {
+      console.log("WebSocket接続完了");
+      
+      // Capability送信
+      client.sendCapabilityMessage([
+        {
+          type: "action",
+          category: "movement",
+          data: { target: { x: 0, y: 0, z: 0 } }
+        }
+      ]);
+    },
+    onMessageReceived: (message: VCCPMessage) => {
+      console.log("メッセージ受信:", message);
+      
+      // アクション処理
+      if (message.type === "action") {
+        handleAction(message);
+      }
+    },
+    onError: (error: Error) => {
+      console.error("エラー:", error);
+    }
+  }
+);
+
+// 手動接続
+await client.connect();
+
+// 知覚情報送信
+client.sendPerceptionMessage("object", {
+  name: "chair",
+  position: { x: 0, y: 0.5, z: 0.5 }
+});
+
+// 接続切断
+await client.disconnect();
+```
