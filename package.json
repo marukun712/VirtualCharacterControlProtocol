@@ -1,8 +1,10 @@
 {
-  "name": "vccp-workspace",
+  "name": "vccp",
+  "module": "index.ts",
+  "type": "module",
   "private": true,
   "workspaces": [
     "packages/*",
-    "example/*"
+    "examples/*"
   ]
 }
