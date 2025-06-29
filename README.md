@@ -93,6 +93,35 @@ VCCP は、LLM（Large Language Model）がバーチャルキャラクターを�
 }
 ```
 
+#### 3. play - アクション実行
+
+指定されたセッションで利用可能なアクションの一覧を取得します。
+実行する action と ws クライアントはは register メソッドで登録されている必要があります。
+
+**リクエスト:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "play",
+  "params": {
+    "sessionId": "uuid",
+    "action": "string"
+  }
+}
+```
+
+**レスポンス:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "success": true
+  }
+}
+```
+
 ### 利用フロー
 
 1. クライアントは`register`メソッドを呼び出し、実行可能なアクションを登録
@@ -109,8 +138,7 @@ JSON-RPC 2.0 標準のエラーフォーマットに従います：
   "jsonrpc": "2.0",
   "error": {
     "code": -32602,
-    "message": "Invalid params",
-    "data": "詳細なエラー情報"
+    "message": "Invalid params"
   }
 }
 ```

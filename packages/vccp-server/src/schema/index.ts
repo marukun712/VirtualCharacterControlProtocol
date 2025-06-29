@@ -31,9 +31,19 @@ export const ActionsRequestSchema = z.object({
   }),
 });
 
+export const PlayRequestSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  method: z.literal("play"),
+  params: z.object({
+    sessionId: z.string(),
+    name: z.string(),
+  }),
+});
+
 export type JSONRPCRequest = z.infer<typeof JSONRPCRequestSchema>;
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
 export type ActionsRequest = z.infer<typeof ActionsRequestSchema>;
+export type PlayRequest = z.infer<typeof PlayRequestSchema>;
 
 export type Session = {
   ws: WSContext<WebSocket>;

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { upgradeWebSocket } from "hono/cloudflare-workers";
 import {
+  PlayRequestSchema,
   ActionsRequestSchema,
   JSONRPCRequestSchema,
   RegisterRequestSchema,
@@ -79,6 +80,62 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
           actions: session.actions,
         },
       };
+    }
+    case "play": {
+      const parsed = PlayRequestSchema.safeParse(body);
+      if (!parsed.success) {
+        return {
+          jsonrpc: "2.0",
+          error: {
+            code: -32600,
+            message: "Invalid Request",
+          },
+        };
+      }
+
+      const session = sessions.get(parsed.data.params.sessionId);
+
+      if (!session) {
+        return {
+          jsonrpc: "2.0",
+          error: {
+            code: -32602,
+            message: "Invalid params",
+          },
+        };
+      }
+
+      const action = session.actions.find(
+        (action) => action.name === parsed.data.params.name
+      );
+
+      if (!action) {
+        return {
+          jsonrpc: "2.0",
+          error: {
+            code: -32602,
+            message: "Invalid params",
+          },
+        };
+      }
+
+      try {
+        session.ws.send(JSON.stringify(action));
+        return {
+          jsonrpc: "2.0",
+          result: {
+            success: true,
+          },
+        };
+      } catch {
+        return {
+          jsonrpc: "2.0",
+          error: {
+            code: -32603,
+            message: "Internal error",
+          },
+        };
+      }
     }
     default: {
       return {
