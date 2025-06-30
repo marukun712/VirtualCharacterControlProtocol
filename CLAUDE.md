@@ -12,19 +12,19 @@ VCCP (Virtual Character Control Protocol) is a JSON-RPC 2.0 based communication 
 
 ### Server Development
 
-- `cd packages/vccp-server && bun run dev` - Start the development server with hot reload on port 3000
+- `cd packages/vccp-server && bun run dev` - Start the VCCP server with hot reload (default port 3000)
 - `bun install` - Install all workspace dependencies from the root directory
 
-### Package Management
+### Example Client Development
 
-- This is a Bun workspace project with packages in `packages/` and `examples/` directories
-- All dependencies are managed through the root workspace
-- Individual packages can be developed independently
+- `cd examples/client && bun run dev` - Start the example client with hot reload on port 8000
+- The client demonstrates WebSocket connection to VCCP server and action registration
 
-### Example Client
+### Dependency Management
 
-- `cd examples/client && bun run dev` - Run the example WebSocket client
-- The client example demonstrates how to connect to the VCCP server and register actions
+- This is a Bun workspace with packages in `packages/` and `examples/` directories
+- All dependencies are managed through the root workspace package.json
+- Individual packages use their own scripts but share dependencies
 
 ## Architecture
 
@@ -50,14 +50,15 @@ packages/
 
 **Protocol Implementation:**
 
-The server implements six main JSON-RPC methods:
+The server implements seven main JSON-RPC methods:
 
 1. `register` - Creates new sessions and registers available actions with flexible JSON schemas
-2. `action.get` - Retrieves available actions for a given session
-3. `action.play` - Executes actions by forwarding them to the registered WebSocket client
-4. `perception.set` - Records perception information categorized by type
-5. `perception.category` - Retrieves the latest perception information for a specific category
-6. `perception.list` - Retrieves all perception information for a session
+2. `action.list` - Retrieves all available actions for a given session (deprecated: use action.get)
+3. `action.get` - Retrieves available actions for a given session or specific action details
+4. `action.play` - Executes actions by forwarding them to the registered WebSocket client
+5. `perception.set` - Records perception information categorized by type
+6. `perception.category` - Retrieves the latest perception information for a specific category
+7. `perception.list` - Retrieves all perception information for a session
 
 **Session Management:**
 
@@ -101,6 +102,7 @@ The server implements six main JSON-RPC methods:
 
 ### Testing and Deployment
 
-- Currently no test framework is configured in the project
-- For Cloudflare Workers deployment, the server code is designed to be compatible with the Workers runtime
-- Local development uses Bun's built-in hot reload for rapid iteration
+- No formal test framework is configured - testing is done manually with the example client
+- Server is designed for Cloudflare Workers deployment compatibility
+- Local development uses `bun run --hot` for automatic restart on file changes
+- Client example runs on port 8000, server on port 3000 by default
