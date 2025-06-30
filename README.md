@@ -21,6 +21,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
+  "id": 1,
   "method": "register",
   "params": {
     "actions": [
@@ -55,13 +56,14 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
+  "id": 1,
   "result": {
     "sessionId": "uuid"
   }
 }
 ```
 
-#### 2. actions - アクション一覧取得
+#### 2. action.get - アクション一覧取得
 
 指定されたセッションで利用可能なアクションの一覧を取得します。
 
@@ -70,7 +72,8 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "actions",
+  "id": 1,
+  "method": "action.get",
   "params": {
     "sessionId": "uuid"
   }
@@ -82,6 +85,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
+  "id": 1,
   "result": {
     "actions": [
       {
@@ -110,17 +114,18 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 3. play - アクション実行
+#### 3. action.play - アクション実行
 
 指定されたセッションで利用可能なアクションの一覧を取得します。
-実行する action と ws クライアントはは register メソッドで登録されている必要があります。
+実行する action と ws クライアントは register メソッドで登録されている必要があります。
 
 **リクエスト:**
 
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "play",
+  "id": 1,
+  "method": "action.play",
   "params": {
     "sessionId": "uuid",
     "action": "move",
@@ -138,15 +143,18 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
+  "id": 1,
   "result": {
     "success": true
   }
 }
 ```
 
-#### 3. perception - 知覚情報の記録
+#### 4. perception.set - 知覚情報の記録
 
 ユーザーは、セッションごとに知覚情報を自然言語で記録して、LLM に伝えることができます。
+
+**リクエスト:**
 
 ```json
 {
@@ -154,7 +162,69 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
   "method": "perception",
   "params": {
     "sessionId": "uuid",
-    "perception": "string"
+    "category": "object",
+    "perception": "椅子がx:2,y:2,z:0にあります"
+  }
+}
+```
+
+#### 5. perception.category - 知覚情報の取得(カテゴリごと)
+
+カテゴリごとの最新の知覚情報を取得することができます。
+
+**リクエスト:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "perception.category",
+  "params": {
+    "sessionId": "uuid",
+    "category": "object"
+  }
+}
+```
+
+**レスポンス:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "perception": "椅子がx:2,y:2,z:0にあります"
+  }
+}
+```
+
+#### 6. perception.list - 知覚情報の一覧取得
+
+セッションで保持されている知覚情報をすべて取得することができます。
+
+**リクエスト:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "perception.list",
+  "params": {
+    "sessionId": "uuid"
+  }
+}
+```
+
+**レスポンス:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "perceptions": [
+      { "category": "object", "perception": "椅子がx:2,y:2,z:0にあります" }
+    ]
   }
 }
 ```
