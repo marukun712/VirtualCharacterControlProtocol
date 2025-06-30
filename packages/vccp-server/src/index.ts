@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import {
   ActionPlayRequestSchema,
+  ActionListRequestSchema,
   ActionGetRequestSchema,
   JSONRPCRequestSchema,
   RegisterRequestSchema,
@@ -100,8 +101,8 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
         sessionId: id,
       });
     }
-    case "action.get": {
-      const parseResult = parseRequest(ActionGetRequestSchema, parsed.data);
+    case "action.list": {
+      const parseResult = parseRequest(ActionListRequestSchema, parsed.data);
       if (!parseResult.data) {
         return parseResult.error;
       }
@@ -116,6 +117,29 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
       return createSuccessResponse(data.id, {
         actions: session.actions,
       });
+    }
+    case "action.get": {
+      const parseResult = parseRequest(ActionGetRequestSchema, parsed.data);
+      if (!parseResult.data) {
+        return parseResult.error;
+      }
+
+      const data = parseResult.data;
+      const session = getSession(data.params.sessionId);
+
+      if (!session) {
+        return createErrorResponse(data.id, -32602, "Invalid params");
+      }
+
+      const action = session.actions.find(
+        (action) => action.title === data.params.action
+      );
+
+      if (!action) {
+        return createErrorResponse(data.id, -32602, "Invalid params");
+      }
+
+      return createSuccessResponse(data.id, action);
     }
     case "action.play": {
       const parseResult = parseRequest(ActionPlayRequestSchema, parsed.data);

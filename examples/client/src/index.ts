@@ -134,6 +134,7 @@ app.get("/", (c) => {
                 <label for="methodSelect">メソッド:</label>
                 <select id="methodSelect">
                     <option value="register">register</option>
+                    <option value="action.list">action.list</option>
                     <option value="action.get">action.get</option>
                     <option value="action.play">action.play</option>
                     <option value="perception.set">perception.set</option>
@@ -158,7 +159,8 @@ app.get("/", (c) => {
     <div class="container">
         <h2>プリセットメッセージ</h2>
         <button class="preset-btn" data-method="register" data-params='{"actions": [{"title": "move", "description": "キャラクターを指定した座標に移動させる", "type": "object", "properties": {"x": {"description": "x座標", "type": "integer"}, "y": {"description": "y座標", "type": "integer"}, "z": {"description": "z座標", "type": "integer"}}}]}'>サンプル登録</button>
-        <button class="preset-btn" data-method="action.get" data-params='{"sessionId": "SESSION_ID"}'>アクション取得</button>
+        <button class="preset-btn" data-method="action.list" data-params='{"sessionId": "SESSION_ID"}'>アクション一覧</button>
+        <button class="preset-btn" data-method="action.get" data-params='{"sessionId": "SESSION_ID", "action": "move"}'>アクション取得</button>
         <button class="preset-btn" data-method="action.play" data-params='{"sessionId": "SESSION_ID", "action": "move", "properties": {"x": 5, "y": 0, "z": 5}}'>アクション実行</button>
         <button class="preset-btn" data-method="perception.set" data-params='{"sessionId": "SESSION_ID", "category": "object", "perception": "椅子がx:2,y:2,z:0にあります"}'>知覚情報記録</button>
         <button class="preset-btn" data-method="perception.category" data-params='{"sessionId": "SESSION_ID", "category": "object"}'>知覚情報取得(カテゴリ)</button>
@@ -306,12 +308,19 @@ app.get("/", (c) => {
                 case 'register':
                     defaultParams = '{"actions": []}';
                     break;
-                case 'action.get':
-                case 'action.play':
-                case 'perception.set':
+                case 'action.list':
                 case 'perception.category':
                 case 'perception.list':
                     defaultParams = '{"sessionId": "SESSION_ID"}';
+                    break;
+                case 'action.get':
+                    defaultParams = '{"sessionId": "SESSION_ID", "action": "move"}';
+                    break;
+                case 'action.play':
+                    defaultParams = '{"sessionId": "SESSION_ID", "action": "move", "properties": {}}';
+                    break;
+                case 'perception.set':
+                    defaultParams = '{"sessionId": "SESSION_ID", "category": "object", "perception": ""}';
                     break;
             }
             

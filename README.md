@@ -200,24 +200,11 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 1,
   "method": "perception.set",
   "params": {
     "sessionId": "uuid",
     "category": "object",
     "perception": "椅子がx:2,y:2,z:0にあります"
-  }
-}
-```
-
-**レスポンス:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "success": true
   }
 }
 ```

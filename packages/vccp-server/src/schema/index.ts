@@ -28,11 +28,21 @@ export const RegisterRequestSchema = z.object({
   id: z.union([z.string(), z.number()]),
 });
 
+export const ActionListRequestSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  method: z.literal("action.list"),
+  params: z.object({
+    sessionId: z.string(),
+  }),
+  id: z.union([z.string(), z.number()]),
+});
+
 export const ActionGetRequestSchema = z.object({
   jsonrpc: z.literal("2.0"),
   method: z.literal("action.get"),
   params: z.object({
     sessionId: z.string(),
+    action: z.string(),
   }),
   id: z.union([z.string(), z.number()]),
 });
@@ -79,6 +89,7 @@ export const PerceptionListRequestSchema = z.object({
 
 export type JSONRPCRequest = z.infer<typeof JSONRPCRequestSchema>;
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+export type ActionListRequest = z.infer<typeof ActionListRequestSchema>;
 export type ActionGetRequest = z.infer<typeof ActionGetRequestSchema>;
 export type ActionPlayRequest = z.infer<typeof ActionPlayRequestSchema>;
 export type PerceptionSetRequest = z.infer<typeof PerceptionSetRequestSchema>;
