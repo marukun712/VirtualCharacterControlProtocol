@@ -199,15 +199,8 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
         (p) => p.category === data.params.category
       );
 
-      const latestPerception =
-        categoryPerceptions[categoryPerceptions.length - 1];
-
-      if (!latestPerception) {
-        return createErrorResponse(data.id, -32002, "Perception not found");
-      }
-
       return createSuccessResponse(data.id, {
-        perception: latestPerception.perception,
+        perceptions: categoryPerceptions,
       });
     }
     case "perception.list": {
