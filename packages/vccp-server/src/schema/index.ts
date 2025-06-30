@@ -8,7 +8,6 @@ export const ActionSchema = z.object({
   description: z.string().optional(),
   type: z.literal("object"),
   properties: z.record(z.any()),
-  required: z.array(z.string()).optional(),
 });
 
 export type Action = z.infer<typeof ActionSchema>;
@@ -16,7 +15,7 @@ export type Action = z.infer<typeof ActionSchema>;
 export const JSONRPCRequestSchema = z.object({
   jsonrpc: z.literal("2.0"),
   method: z.string(),
-  params: z.record(z.any()).optional(),
+  params: z.record(z.any()),
   id: z.union([z.string(), z.number()]).optional(),
 });
 
@@ -26,7 +25,7 @@ export const RegisterRequestSchema = z.object({
   params: z.object({
     actions: z.array(ActionSchema),
   }),
-  id: z.union([z.string(), z.number()]).optional(),
+  id: z.union([z.string(), z.number()]),
 });
 
 export const ActionGetRequestSchema = z.object({
@@ -35,7 +34,7 @@ export const ActionGetRequestSchema = z.object({
   params: z.object({
     sessionId: z.string(),
   }),
-  id: z.union([z.string(), z.number()]).optional(),
+  id: z.union([z.string(), z.number()]),
 });
 
 export const ActionPlayRequestSchema = z.object({
@@ -46,7 +45,7 @@ export const ActionPlayRequestSchema = z.object({
     action: z.string(),
     properties: z.record(z.any()),
   }),
-  id: z.union([z.string(), z.number()]).optional(),
+  id: z.union([z.string(), z.number()]),
 });
 
 export const PerceptionSetRequestSchema = z.object({
@@ -57,7 +56,6 @@ export const PerceptionSetRequestSchema = z.object({
     category: z.string(),
     perception: z.string(),
   }),
-  id: z.union([z.string(), z.number()]).optional(),
 });
 
 export const PerceptionCategoryRequestSchema = z.object({
@@ -67,7 +65,7 @@ export const PerceptionCategoryRequestSchema = z.object({
     sessionId: z.string(),
     category: z.string(),
   }),
-  id: z.union([z.string(), z.number()]).optional(),
+  id: z.union([z.string(), z.number()]),
 });
 
 export const PerceptionListRequestSchema = z.object({
@@ -76,7 +74,7 @@ export const PerceptionListRequestSchema = z.object({
   params: z.object({
     sessionId: z.string(),
   }),
-  id: z.union([z.string(), z.number()]).optional(),
+  id: z.union([z.string(), z.number()]),
 });
 
 export type JSONRPCRequest = z.infer<typeof JSONRPCRequestSchema>;
@@ -84,7 +82,9 @@ export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
 export type ActionGetRequest = z.infer<typeof ActionGetRequestSchema>;
 export type ActionPlayRequest = z.infer<typeof ActionPlayRequestSchema>;
 export type PerceptionSetRequest = z.infer<typeof PerceptionSetRequestSchema>;
-export type PerceptionCategoryRequest = z.infer<typeof PerceptionCategoryRequestSchema>;
+export type PerceptionCategoryRequest = z.infer<
+  typeof PerceptionCategoryRequestSchema
+>;
 export type PerceptionListRequest = z.infer<typeof PerceptionListRequestSchema>;
 
 export type Perception = {

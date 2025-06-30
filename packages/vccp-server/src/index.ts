@@ -20,25 +20,28 @@ const ajv = new Ajv();
 const app = new Hono();
 const sessions = new Map<string, Session>();
 
-function createErrorResponse(id: string | number | null | undefined, code: number, message: string, data?: unknown) {
-  const error: { code: number; message: string; data?: unknown } = {
+function createErrorResponse(
+  id: string | number | null,
+  code: number,
+  message: string
+) {
+  const error: { code: number; message: string } = {
     code,
     message,
   };
-  
-  if (data !== undefined) {
-    error.data = data;
+  const data: Record<string, any> = { jsonrpc: "2.0" };
+  if (id !== null) {
+    data.id = id;
   }
-
-  return {
-    jsonrpc: "2.0",
-    id: id ?? null,
-    error,
-  };
+  data.error = error;
+  return data;
 }
 
-function createSuccessResponse(id: string | number | null | undefined, result: unknown) {
-  if (id === null || id === undefined) return undefined;
+function createSuccessResponse(
+  id: string | number | null,
+  result: Record<string, any>
+) {
+  if (!id) return null;
   return {
     jsonrpc: "2.0",
     id,
@@ -50,38 +53,28 @@ function getSession(sessionId: string) {
   return sessions.get(sessionId);
 }
 
-function parseRequest<T>(
-  schema: ZodSchema<T>,
-  body: unknown,
-  id?: string | number | null
-): { success: true; data: T } | { success: false; error: unknown } {
+function parseRequest<T>(schema: ZodSchema<T>, body: Record<string, any>) {
   const parsed = schema.safeParse(body);
   return parsed.success
-    ? { success: true, data: parsed.data }
-    : { success: false, error: createErrorResponse(id, -32600, "Invalid Request") };
+    ? { data: parsed.data, error: null }
+    : {
+        data: null,
+        error: createErrorResponse(null, -32600, "Invalid Request"),
+      };
 }
 
 function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
-  let body: unknown;
-  try {
-    body = JSON.parse(message);
-  } catch {
-    return createErrorResponse(null, -32700, "Parse error");
-  }
-
-  const parsed = JSONRPCRequestSchema.safeParse(body);
+  const parsed = JSONRPCRequestSchema.safeParse(message);
   if (!parsed.success) {
-    const id = typeof body === 'object' && body !== null && 'id' in body ? 
-      (body as { id: string | number }).id : null;
-    return createErrorResponse(id, -32600, "Invalid Request");
+    return createErrorResponse(null, -32600, "Invalid Request");
   }
 
   const request = parsed.data;
 
   switch (request.method) {
     case "register": {
-      const parseResult = parseRequest(RegisterRequestSchema, body, request.id);
-      if (!parseResult.success) {
+      const parseResult = parseRequest(RegisterRequestSchema, parsed.data);
+      if (!parseResult.data) {
         return parseResult.error;
       }
 
@@ -90,7 +83,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
         try {
           ajv.compile(action);
         } catch (error) {
-          return createErrorResponse(request.id, -32602, "Invalid params");
+          return createErrorResponse(data.id, -32602, "Invalid params");
         }
       }
 
@@ -106,8 +99,8 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       });
     }
     case "action.get": {
-      const parseResult = parseRequest(ActionGetRequestSchema, body, request.id);
-      if (!parseResult.success) {
+      const parseResult = parseRequest(ActionGetRequestSchema, parsed.data);
+      if (!parseResult.data) {
         return parseResult.error;
       }
 
@@ -115,7 +108,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       const session = getSession(data.params.sessionId);
 
       if (!session) {
-        return createErrorResponse(request.id, -32602, "Invalid params");
+        return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
       return createSuccessResponse(data.id, {
@@ -123,8 +116,8 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       });
     }
     case "action.play": {
-      const parseResult = parseRequest(ActionPlayRequestSchema, body, request.id);
-      if (!parseResult.success) {
+      const parseResult = parseRequest(ActionPlayRequestSchema, parsed.data);
+      if (!parseResult.data) {
         return parseResult.error;
       }
 
@@ -132,7 +125,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       const session = getSession(data.params.sessionId);
 
       if (!session) {
-        return createErrorResponse(request.id, -32602, "Invalid params");
+        return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
       const action = session.actions.find(
@@ -140,14 +133,14 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       );
 
       if (!action) {
-        return createErrorResponse(request.id, -32602, "Invalid params");
+        return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
       const validate = ajv.compile(action);
       const valid = validate(data.params.properties);
 
       if (!valid) {
-        return createErrorResponse(request.id, -32602, "Invalid params", validate.errors);
+        return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
       try {
@@ -161,12 +154,12 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
           success: true,
         });
       } catch {
-        return createErrorResponse(request.id, -32603, "Internal error");
+        return createErrorResponse(data.id, -32603, "Internal error");
       }
     }
     case "perception.set": {
-      const parseResult = parseRequest(PerceptionSetRequestSchema, body, request.id);
-      if (!parseResult.success) {
+      const parseResult = parseRequest(PerceptionSetRequestSchema, parsed.data);
+      if (!parseResult.data) {
         return parseResult.error;
       }
 
@@ -174,7 +167,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       const session = getSession(data.params.sessionId);
 
       if (!session) {
-        return createErrorResponse(request.id, -32602, "Invalid params");
+        return createErrorResponse(null, -32602, "Invalid params");
       }
 
       session.perceptions.push({
@@ -182,13 +175,14 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
         perception: data.params.perception,
       });
 
-      return createSuccessResponse(data.id, {
-        success: true,
-      });
+      return null;
     }
     case "perception.category": {
-      const parseResult = parseRequest(PerceptionCategoryRequestSchema, body, request.id);
-      if (!parseResult.success) {
+      const parseResult = parseRequest(
+        PerceptionCategoryRequestSchema,
+        parsed.data
+      );
+      if (!parseResult.data) {
         return parseResult.error;
       }
 
@@ -196,7 +190,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       const session = getSession(data.params.sessionId);
 
       if (!session) {
-        return createErrorResponse(request.id, -32602, "Invalid params");
+        return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
       const categoryPerceptions = session.perceptions.filter(
@@ -207,7 +201,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
         categoryPerceptions[categoryPerceptions.length - 1];
 
       if (!latestPerception) {
-        return createErrorResponse(request.id, -32002, "Perception not found");
+        return createErrorResponse(data.id, -32002, "Perception not found");
       }
 
       return createSuccessResponse(data.id, {
@@ -215,8 +209,11 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       });
     }
     case "perception.list": {
-      const parseResult = parseRequest(PerceptionListRequestSchema, body, request.id);
-      if (!parseResult.success) {
+      const parseResult = parseRequest(
+        PerceptionListRequestSchema,
+        parsed.data
+      );
+      if (!parseResult.data) {
         return parseResult.error;
       }
 
@@ -224,7 +221,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       const session = getSession(data.params.sessionId);
 
       if (!session) {
-        return createErrorResponse(request.id, -32602, "Invalid params");
+        return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
       return createSuccessResponse(data.id, {
@@ -232,7 +229,11 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
       });
     }
     default: {
-      return createErrorResponse(request.id, -32601, "Method not found");
+      return createErrorResponse(
+        parsed.data.id ?? null,
+        -32601,
+        "Method not found"
+      );
     }
   }
 }
@@ -243,7 +244,7 @@ app.get(
     return {
       onMessage(event, ws) {
         const res = handleJSONRPCMessage(event.data.toString(), ws);
-        ws.send(JSON.stringify(res));
+        if (res) ws.send(JSON.stringify(res));
       },
       onClose: (_, ws) => {
         sessions.forEach((session, key) => {
