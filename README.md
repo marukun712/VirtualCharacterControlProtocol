@@ -2,7 +2,7 @@
 
 ## 概要
 
-VCCP は、LLM（Large Language Model）がバーチャルキャラクターを操作するための通信プロトコルです。JSON-RPC 2.0 形式を採用し、セッションベースでキャラクターの動作を制御します。
+VCCP は、LLM がバーチャルキャラクターを操作するための通信プロトコルです。JSON-RPC 2.0 形式を採用し、セッションベースでキャラクターの動作を制御します。
 
 ## プロトコル仕様
 
@@ -14,17 +14,9 @@ VCCP は、LLM（Large Language Model）がバーチャルキャラクターを�
 
 #### 1. register - セッション登録
 
-新しいセッションを開始し、利用可能なアクションを登録します。アクションのスキーマは以下のように定義されており、ユーザーは任意のアクションを登録することができます。
+新しいセッションを開始し、利用可能なアクションを登録します。アクションのスキーマは JSON Schema で記述され 、ユーザーは任意のアクションを登録することができます。
 
-```json
-{
-  "name": string,
-  "description": string,
-  "params": Record<string,any>
-}
-```
-
-**リクエスト例:**
+**リクエスト:**
 
 ```json
 {
@@ -33,12 +25,24 @@ VCCP は、LLM（Large Language Model）がバーチャルキャラクターを�
   "params": {
     "actions": [
       {
-        "name": "move",
-        "description": "キャラクターを指定座標に移動",
-        "params": {
-          "x": "number",
-          "y": "number",
-          "z": "number"
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://example.com/product.schema.json",
+        "title": "move",
+        "description": "キャラクターを指定した座標に移動させる",
+        "type": "object",
+        "properties": {
+          "x": {
+            "description": "x座標",
+            "type": "integer"
+          },
+          "y": {
+            "description": "y座標",
+            "type": "integer"
+          },
+          "z": {
+            "description": "z座標",
+            "type": "integer"
+          }
         }
       }
     ]
@@ -81,11 +85,24 @@ VCCP は、LLM（Large Language Model）がバーチャルキャラクターを�
   "result": {
     "actions": [
       {
-        "name": "move",
-        "description": "キャラクターを指定座標に移動",
-        "params": {
-          "x": "number",
-          "y": "number"
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://example.com/product.schema.json",
+        "title": "move",
+        "description": "キャラクターを指定した座標に移動させる",
+        "type": "object",
+        "properties": {
+          "x": {
+            "description": "x座標",
+            "type": "integer"
+          },
+          "y": {
+            "description": "y座標",
+            "type": "integer"
+          },
+          "z": {
+            "description": "z座標",
+            "type": "integer"
+          }
         }
       }
     ]
@@ -106,7 +123,12 @@ VCCP は、LLM（Large Language Model）がバーチャルキャラクターを�
   "method": "play",
   "params": {
     "sessionId": "uuid",
-    "action": "string"
+    "action": "move",
+    "properties": {
+      "x": 5,
+      "y": 0,
+      "z": 5
+    }
   }
 }
 ```
@@ -118,6 +140,21 @@ VCCP は、LLM（Large Language Model）がバーチャルキャラクターを�
   "jsonrpc": "2.0",
   "result": {
     "success": true
+  }
+}
+```
+
+#### 3. perception - 知覚情報の記録
+
+ユーザーは、セッションごとに知覚情報を自然言語で記録して、LLM に伝えることができます。
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "perception",
+  "params": {
+    "sessionId": "uuid",
+    "perception": "string"
   }
 }
 ```
