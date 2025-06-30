@@ -93,7 +93,7 @@ export type Perception = {
 };
 
 export type Session = {
-  ws: WSContext<WebSocket>;
+  ws: WSContext<unknown>;
   actions: Action[];
   perceptions: Perception[];
 };

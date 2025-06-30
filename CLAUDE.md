@@ -21,6 +21,11 @@ VCCP (Virtual Character Control Protocol) is a JSON-RPC 2.0 based communication 
 - All dependencies are managed through the root workspace
 - Individual packages can be developed independently
 
+### Example Client
+
+- `cd examples/client && bun run dev` - Run the example WebSocket client
+- The client example demonstrates how to connect to the VCCP server and register actions
+
 ## Architecture
 
 ### Project Structure
@@ -93,3 +98,9 @@ The server implements six main JSON-RPC methods:
 - Actions support arbitrary parameter schemas defined by clients using JSON Schema
 - Perception data is categorized and stored per session for environmental awareness
 - WebSocket connections handle both JSON-RPC protocol and raw action forwarding
+
+### Testing and Deployment
+
+- Currently no test framework is configured in the project
+- For Cloudflare Workers deployment, the server code is designed to be compatible with the Workers runtime
+- Local development uses Bun's built-in hot reload for rapid iteration

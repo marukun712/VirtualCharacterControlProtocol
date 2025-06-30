@@ -26,8 +26,6 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
   "params": {
     "actions": [
       {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://example.com/product.schema.json",
         "title": "move",
         "description": "キャラクターを指定した座標に移動させる",
         "type": "object",
@@ -89,8 +87,6 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
   "result": {
     "actions": [
       {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://example.com/product.schema.json",
         "title": "move",
         "description": "キャラクターを指定した座標に移動させる",
         "type": "object",
@@ -159,7 +155,8 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "perception",
+  "id": 1,
+  "method": "perception.set",
   "params": {
     "sessionId": "uuid",
     "category": "object",

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { upgradeWebSocket } from "hono/cloudflare-workers";
+import { createBunWebSocket } from "hono/bun";
 import {
   ActionPlayRequestSchema,
   ActionGetRequestSchema,
@@ -18,6 +18,7 @@ import { ZodSchema } from "zod";
 const ajv = new Ajv();
 
 const app = new Hono();
+const { upgradeWebSocket, websocket } = createBunWebSocket();
 const sessions = new Map<string, Session>();
 
 function createErrorResponse(
@@ -63,8 +64,8 @@ function parseRequest<T>(schema: ZodSchema<T>, body: Record<string, any>) {
       };
 }
 
-function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
-  const parsed = JSONRPCRequestSchema.safeParse(message);
+function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
+  const parsed = JSONRPCRequestSchema.safeParse(JSON.parse(message));
   if (!parsed.success) {
     return createErrorResponse(null, -32600, "Invalid Request");
   }
@@ -83,6 +84,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<WebSocket>) {
         try {
           ajv.compile(action);
         } catch (error) {
+          console.log(error);
           return createErrorResponse(data.id, -32602, "Invalid params");
         }
       }
@@ -258,4 +260,7 @@ app.get(
   })
 );
 
-export default app;
+export default {
+  fetch: app.fetch,
+  websocket,
+};
