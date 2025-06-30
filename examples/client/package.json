@@ -1,11 +1,12 @@
 {
-  "name": "vccp-server",
+  "name": "client",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --hot --port 8000 src/index.ts"
   },
   "dependencies": {
+    "@types/ws": "^8.18.1",
     "hono": "^4.8.3",
-    "zod": "^3.25.67"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/bun": "latest"
