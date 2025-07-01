@@ -6,8 +6,5 @@
   "workspaces": [
     "packages/*",
     "examples/*"
-  ],
-  "dependencies": {
-    "ajv": "^8.17.1"
-  }
+  ]
 }

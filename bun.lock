@@ -3,9 +3,6 @@
   "workspaces": {
     "": {
       "name": "virtualcharactercontrolprotocol",
-      "dependencies": {
-        "ajv": "^8.17.1",
-      },
     },
     "examples/client": {
       "name": "client",
@@ -18,9 +15,23 @@
         "@types/bun": "latest",
       },
     },
+    "packages/vccp-client": {
+      "name": "vccp-client",
+      "dependencies": {
+        "@types/ws": "^8.18.1",
+        "ws": "^8.18.3",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "packages/vccp-server": {
       "name": "vccp-server",
       "dependencies": {
+        "ajv": "^8.17.1",
         "hono": "^4.8.3",
         "zod": "^3.25.67",
       },
@@ -52,7 +63,11 @@
 
     "require-from-string": ["require-from-string@2.0.2", "", {}, "sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw=="],
 
+    "typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
+
     "undici-types": ["undici-types@7.8.0", "", {}, "sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw=="],
+
+    "vccp-client": ["vccp-client@workspace:packages/vccp-client"],
 
     "vccp-server": ["vccp-server@workspace:packages/vccp-server"],
 
