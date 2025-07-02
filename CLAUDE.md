@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-VCCP (Virtual Character Control Protocol) is a JSON-RPC 2.0 based communication protocol that allows LLMs to control virtual characters. The project is structured as a Bun workspace monorepo with server implementation and examples.
+VCCP (Virtual Character Control Protocol) is a JSON-RPC 2.0 based communication protocol that allows LLMs to control virtual characters. The project is structured as a Bun workspace monorepo with server implementation, client library, and examples including MCP integration.
 
 ## Development Commands
 
@@ -15,16 +15,23 @@ VCCP (Virtual Character Control Protocol) is a JSON-RPC 2.0 based communication 
 - `cd packages/vccp-server && bun run dev` - Start the VCCP server with hot reload (default port 3000)
 - `bun install` - Install all workspace dependencies from the root directory
 
-### Example Client Development
+### Client Library Development
 
-- `cd examples/client && bun run dev` - Start the example client with hot reload on port 8000
-- The client demonstrates WebSocket connection to VCCP server and action registration
+- `cd packages/vccp-client && bun run dev` - Start the client library with hot reload for development
+
+### Example Development
+
+- `cd examples/client && bun run dev` - Start the web-based test client with hot reload on port 8000
+- `cd examples/mcp && bun run dev` - Start the MCP server example for LLM integration
+- The web client demonstrates WebSocket connection to VCCP server and action registration
+- The MCP server provides tools for LLMs to interact with VCCP clients
 
 ### Dependency Management
 
-- This is a Bun workspace with packages in `packages/` and `examples/` directories
+- This is a Bun workspace with separate packages and examples directories
 - All dependencies are managed through the root workspace package.json
 - Individual packages use their own scripts but share dependencies
+- Internal packages reference each other using `workspace:*` syntax
 
 ## Architecture
 
@@ -37,6 +44,16 @@ packages/
       index.ts          # Main server entry point with WebSocket handling and JSON-RPC message routing
       schema/
         index.ts        # Zod schema definitions for all protocol types and validation
+  vccp-client/          # Client library for connecting to VCCP servers
+    index.ts            # Main client library with WebSocket wrapper and protocol handling
+    
+examples/
+  client/               # Web-based test client with HTML interface
+    src/
+      index.ts          # Hono server serving static HTML client
+  mcp/                  # Model Context Protocol server implementation
+    src/
+      index.ts          # MCP server providing VCCP tools for LLMs
 ```
 
 ### Core Components
@@ -47,6 +64,20 @@ packages/
 - Uses WebSocket for real-time bidirectional communication at `/ws` endpoint
 - Session-based architecture with in-memory Map storage for active sessions
 - Implements complete JSON-RPC 2.0 protocol with proper error handling
+
+**Client Library (`packages/vccp-client/`):**
+
+- WebSocket-based client for connecting to VCCP servers
+- Provides TypeScript interfaces for all protocol methods
+- Built with ws library and Zod validation
+- Used by MCP server and can be used by other client applications
+
+**MCP Integration (`examples/mcp/`):**
+
+- Model Context Protocol server that exposes VCCP functionality as MCP tools
+- Allows LLMs to discover and control VCCP sessions through standardized interface
+- Built with @modelcontextprotocol/sdk and Express
+- Uses workspace vccp-client library internally
 
 **Protocol Implementation:**
 
@@ -68,9 +99,10 @@ The server implements seven main JSON-RPC methods:
 
 ### Key Files
 
-- `packages/vccp-server/src/index.ts:20-307` - Complete JSON-RPC message handler with method routing for all 6 protocol methods
-- `packages/vccp-server/src/index.ts:309-327` - WebSocket endpoint with connection lifecycle management
+- `packages/vccp-server/src/index.ts` - Complete JSON-RPC message handler with method routing and WebSocket endpoint
 - `packages/vccp-server/src/schema/index.ts` - Complete type system with Zod validation schemas for all requests and session data structures
+- `packages/vccp-client/index.ts` - Client library implementation with WebSocket wrapper and protocol methods
+- `examples/mcp/src/index.ts` - MCP server implementation providing VCCP tools for LLM integration
 
 ### Protocol Flow
 
@@ -102,7 +134,10 @@ The server implements seven main JSON-RPC methods:
 
 ### Testing and Deployment
 
-- No formal test framework is configured - testing is done manually with the example client
+- No formal test framework is configured - testing is done manually with example clients
+- No build scripts are configured - packages run directly with Bun's TypeScript support
+- No linting tools are configured (ESLint, Prettier, etc.)
 - Server is designed for Cloudflare Workers deployment compatibility
 - Local development uses `bun run --hot` for automatic restart on file changes
-- Client example runs on port 8000, server on port 3000 by default
+- Web client example runs on port 8000, server on port 3000 by default
+- MCP server can be integrated with LLM clients that support Model Context Protocol

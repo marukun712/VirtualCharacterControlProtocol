@@ -6,7 +6,7 @@ VCCP (Virtual Character Control Protocol) のサーバー実装です。JSON-RPC
 
 VCCP Server は、WebSocket を使用してリアルタイムの双方向通信を提供し、セッションベースのアーキテクチャで複数のクライアントを管理します。
 
-## 開発
+## Develop
 
 ### 依存関係のインストール
 
