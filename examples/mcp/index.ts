@@ -7,6 +7,7 @@ import { z } from "zod";
 import { VCCPClient } from "vccp-client";
 
 const client = new VCCPClient({ url: "ws://localhost:3000/ws" });
+const agents = new Map<string, string>();
 
 async function initializeVCCP() {
   try {
@@ -30,10 +31,32 @@ setTimeout(() => {
   server.tool(
     "action-list",
     "指定されたセッションで使用可能なアクションのリストを取得します。",
-    { sessionId: z.string() },
-    async ({ sessionId }) => {
+    {},
+    async ({}, { sessionId }) => {
       try {
-        const data = await client.listActions(sessionId);
+        if (!sessionId)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: MCPサーバーのSessionIdが不正です`,
+              },
+            ],
+          };
+
+        const id = agents.get(sessionId);
+
+        if (!id)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: 先にMCPサーバーに初期化リクエストを送ってください!`,
+              },
+            ],
+          };
+
+        const data = await client.listActions(id);
         return {
           content: [
             {
@@ -56,12 +79,33 @@ setTimeout(() => {
     "action-get",
     "アクションの詳細スキーマを取得します。action-listの後に使ってください。",
     {
-      sessionId: z.string(),
       actionName: z.string(),
     },
-    async ({ sessionId, actionName }) => {
+    async ({ actionName }, { sessionId }) => {
       try {
-        const data = await client.getAction(sessionId, actionName);
+        if (!sessionId)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: MCPサーバーのSessionIdが不正です`,
+              },
+            ],
+          };
+
+        const id = agents.get(sessionId);
+
+        if (!id)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: 先にMCPサーバーに初期化リクエストを送ってください!`,
+              },
+            ],
+          };
+
+        const data = await client.getAction(id, actionName);
 
         return {
           content: [
@@ -80,15 +124,36 @@ setTimeout(() => {
 
   server.tool(
     "action-play",
-    "指定されたセッションでアクションを実行します",
+    "アクションを実行します",
     {
-      sessionId: z.string(),
       actionName: z.string(),
       parameters: z.any(),
     },
-    async ({ sessionId, actionName, parameters }) => {
+    async ({ actionName, parameters }, { sessionId }) => {
       try {
-        const data = await client.playAction(sessionId, actionName, parameters);
+        if (!sessionId)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: MCPサーバーのSessionIdが不正です`,
+              },
+            ],
+          };
+
+        const id = agents.get(sessionId);
+
+        if (!id)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: 先にMCPサーバーに初期化リクエストを送ってください!`,
+              },
+            ],
+          };
+
+        const data = await client.playAction(id, actionName, parameters);
         return {
           content: [
             { type: "text", text: JSON.stringify(data.result, null, 2) },
@@ -106,14 +171,35 @@ setTimeout(() => {
 
   server.tool(
     "perception-category",
-    "指定されたセッションとカテゴリの最新の知覚情報を取得します",
+    "カテゴリごとの最新の知覚情報を取得します",
     {
-      sessionId: z.string(),
       category: z.string(),
     },
-    async ({ sessionId, category }) => {
+    async ({ category }, { sessionId }) => {
       try {
-        const data = await client.getPerceptionByCategory(category, sessionId);
+        if (!sessionId)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: MCPサーバーのSessionIdが不正です`,
+              },
+            ],
+          };
+
+        const id = agents.get(sessionId);
+
+        if (!id)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: 先にMCPサーバーに初期化リクエストを送ってください!`,
+              },
+            ],
+          };
+
+        const data = await client.getPerceptionByCategory(id, category);
         return {
           content: [
             {
@@ -134,11 +220,33 @@ setTimeout(() => {
 
   server.tool(
     "perception-list",
-    "指定されたセッションのすべての知覚情報を取得します",
-    { sessionId: z.string() },
-    async ({ sessionId }) => {
+    "すべての知覚情報を取得します",
+    {},
+    async ({}, { sessionId }) => {
       try {
-        const data = await client.listPerception(sessionId);
+        if (!sessionId)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: MCPサーバーのSessionIdが不正です`,
+              },
+            ],
+          };
+
+        const id = agents.get(sessionId);
+
+        if (!id)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: 先にMCPサーバーに初期化リクエストを送ってください!`,
+              },
+            ],
+          };
+
+        const data = await client.listPerception(id);
         return {
           content: [
             {
@@ -162,7 +270,7 @@ setTimeout(() => {
 
   const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
-  app.post("/mcp", async (req, res) => {
+  app.post("/mcp/:id", async (req, res) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
     let transport: StreamableHTTPServerTransport;
 
@@ -173,6 +281,7 @@ setTimeout(() => {
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sessionId) => {
           transports[sessionId] = transport;
+          agents.set(sessionId, req.params.id);
         },
       });
 
