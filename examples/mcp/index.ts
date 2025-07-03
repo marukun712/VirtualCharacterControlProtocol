@@ -84,7 +84,7 @@ setTimeout(() => {
     {
       sessionId: z.string(),
       actionName: z.string(),
-      parameters: z.record(z.any()),
+      parameters: z.any(),
     },
     async ({ sessionId, actionName, parameters }) => {
       try {
