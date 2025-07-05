@@ -320,8 +320,8 @@ setTimeout(() => {
     await transport.handleRequest(req, res);
   };
 
-  app.get("/mcp", handleSessionRequest);
-  app.delete("/mcp", handleSessionRequest);
+  app.get("/mcp/:id", handleSessionRequest);
+  app.delete("/mcp/:id", handleSessionRequest);
   app.listen(3001, () => {
     console.log("MCP Server listening on port 3001");
   });
