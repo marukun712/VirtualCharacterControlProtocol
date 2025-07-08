@@ -354,6 +354,10 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
         }
       }
 
+      if (data.params.actions[-1].time > data.params.duration) {
+        return createErrorResponse(data.id, -32602, "Invalid params");
+      }
+
       try {
         const payload = {
           type: "scheduler",

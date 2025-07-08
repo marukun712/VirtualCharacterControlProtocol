@@ -3,10 +3,8 @@ import { serveStatic } from "hono/bun";
 
 const app = new Hono();
 
-// 静的ファイル配信
 app.use("/static/*", serveStatic({ root: "./" }));
 
-// メインページ
 app.get("/", (c) => {
   return c.html(`
 <!DOCTYPE html>

@@ -22,7 +22,7 @@ VCCP (Virtual Character Control Protocol) is a JSON-RPC 2.0 based communication 
 ### Example Development
 
 - `cd examples/client && bun run dev` - Start the web-based test client with hot reload on port 8000
-- `cd examples/mcp && bun run dev` - Start the MCP server example for LLM integration
+- `cd examples/mcp && bun run index.ts` - Start the MCP server example for LLM integration (no dev script configured)
 - The web client demonstrates WebSocket connection to VCCP server and action registration
 - The MCP server provides tools for LLMs to interact with VCCP clients
 
@@ -81,7 +81,7 @@ examples/
 
 **Protocol Implementation:**
 
-The server implements seven main JSON-RPC methods:
+The server implements eight main JSON-RPC methods:
 
 1. `register` - Creates new sessions and registers available actions with flexible JSON schemas
 2. `action.list` - Retrieves all available actions for a given session (deprecated: use action.get)
@@ -90,6 +90,7 @@ The server implements seven main JSON-RPC methods:
 5. `perception.set` - Records perception information categorized by type
 6. `perception.category` - Retrieves the latest perception information for a specific category
 7. `perception.list` - Retrieves all perception information for a session
+8. `scheduler.send` - Sends multiple scheduled actions with timing information to the client
 
 **Session Management:**
 
