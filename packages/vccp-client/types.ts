@@ -86,6 +86,23 @@ export const PerceptionListRequestSchema = z.object({
   id: z.union([z.string(), z.number()]),
 });
 
+export const SchedulerActionSchema = z.object({
+  time: z.number(),
+  action: z.string(),
+  properties: z.record(z.any()),
+});
+
+export const SchedulerSendRequestSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  method: z.literal("scheduler.send"),
+  params: z.object({
+    sessionId: z.string(),
+    duration: z.number(),
+    actions: z.array(SchedulerActionSchema),
+  }),
+  id: z.union([z.string(), z.number()]),
+});
+
 export type JSONRPCRequest = z.infer<typeof JSONRPCRequestSchema>;
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
 export type ActionListRequest = z.infer<typeof ActionListRequestSchema>;
@@ -96,6 +113,8 @@ export type PerceptionCategoryRequest = z.infer<
   typeof PerceptionCategoryRequestSchema
 >;
 export type PerceptionListRequest = z.infer<typeof PerceptionListRequestSchema>;
+export type SchedulerAction = z.infer<typeof SchedulerActionSchema>;
+export type SchedulerSendRequest = z.infer<typeof SchedulerSendRequestSchema>;
 
 export const JSONRPCResponseSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -166,6 +185,14 @@ export const PerceptionListResponseSchema = z.object({
   }),
 });
 
+export const SchedulerSendResponseSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  id: z.union([z.string(), z.number()]),
+  result: z.object({
+    success: z.boolean(),
+  }),
+});
+
 export type JSONRPCResponse = z.infer<typeof JSONRPCResponseSchema>;
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 export type ActionListResponse = z.infer<typeof ActionListResponseSchema>;
@@ -177,3 +204,4 @@ export type PerceptionCategoryResponse = z.infer<
 export type PerceptionListResponse = z.infer<
   typeof PerceptionListResponseSchema
 >;
+export type SchedulerSendResponse = z.infer<typeof SchedulerSendResponseSchema>;

@@ -222,6 +222,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 
 ```json
 {
+  "type": "play",
   "action": "move",
   "properties": {
     "x": 5,
@@ -320,6 +321,103 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
     "perceptions": [
       { "category": "object", "perception": "椅子がx:2,y:2,z:0にあります" }
     ]
+  }
+}
+```
+
+#### 8 scheduler.send
+
+複数のアクション実行をリクエストします。
+
+**リクエスト:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "scheduler.send",
+  "params": {
+    "sessionId": "uuid",
+    "duration": 10,
+    "actions": [
+      {
+        "time": 1,
+        "action": "move",
+        "properties": {
+          "x": 2,
+          "y": 0,
+          "z": 2
+        }
+      },
+      {
+        "time": 5,
+        "action": "move",
+        "properties": {
+          "x": -2,
+          "y": 0,
+          "z": -2
+        }
+      }
+      {
+        "time": 10,
+        "action": "move",
+        "properties": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      }
+    ]
+  }
+}
+```
+
+クライアント側にこのようなメッセージが送信されます。
+
+```json
+{
+  "type": "scheduler",
+  "duration": 10,
+  "actions": [
+    {
+      "time": 1,
+      "action": "move",
+      "properties": {
+        "x": 2,
+        "y": 0,
+        "z": 2
+      }
+    },
+    {
+      "time": 5,
+      "action": "move",
+      "properties": {
+        "x": -2,
+        "y": 0,
+        "z": -2
+      }
+    },
+    {
+      "time": 10,
+      "action": "move",
+      "properties": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    }
+  ]
+}
+```
+
+**レスポンス:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "success": true
   }
 }
 ```

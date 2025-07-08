@@ -140,6 +140,7 @@ app.get("/", (c) => {
                     <option value="perception.set">perception.set</option>
                     <option value="perception.category">perception.category</option>
                     <option value="perception.list">perception.list</option>
+                    <option value="scheduler.send">scheduler.send</option>
                 </select>
             </div>
             <div class="form-group">
@@ -165,6 +166,7 @@ app.get("/", (c) => {
         <button class="preset-btn" data-method="perception.set" data-params='{"sessionId": "SESSION_ID", "category": "object", "perception": "椅子がx:2,y:2,z:0にあります"}'>知覚情報記録</button>
         <button class="preset-btn" data-method="perception.category" data-params='{"sessionId": "SESSION_ID", "category": "object"}'>知覚情報取得(カテゴリ)</button>
         <button class="preset-btn" data-method="perception.list" data-params='{"sessionId": "SESSION_ID"}'>知覚情報一覧</button>
+        <button class="preset-btn" data-method="scheduler.send" data-params='{"sessionId": "SESSION_ID", "duration": 10, "actions": [{"time": 1, "action": "move", "properties": {"x": 2, "y": 0, "z": 2}}, {"time": 5, "action": "move", "properties": {"x": -2, "y": 0, "z": -2}}, {"time": 10, "action": "move", "properties": {"x": 0, "y": 0, "z": 0}}]}'>スケジューラー送信</button>
     </div>
 
     <script>
@@ -227,6 +229,16 @@ app.get("/", (c) => {
                     if (message.result && message.result.sessionId) {
                         currentSessionId = message.result.sessionId;
                         addMessageToLog({ info: \`Session ID が設定されました: \${currentSessionId}\` }, 'received');
+                    }
+                    
+                    // サーバーからのアクション実行メッセージを処理
+                    if (message.type === 'play') {
+                        addMessageToLog({ info: \`アクション実行: \${message.action}\`, properties: message.properties }, 'received');
+                    }
+                    
+                    // サーバーからのスケジューラーメッセージを処理
+                    if (message.type === 'scheduler') {
+                        addMessageToLog({ info: \`スケジューラー実行: \${message.actions.length}個のアクション\`, duration: message.duration, actions: message.actions }, 'received');
                     }
                 } catch (e) {
                     addMessageToLog({ error: 'JSON解析エラー', data: event.data }, 'error');
@@ -321,6 +333,9 @@ app.get("/", (c) => {
                     break;
                 case 'perception.set':
                     defaultParams = '{"sessionId": "SESSION_ID", "category": "object", "perception": ""}';
+                    break;
+                case 'scheduler.send':
+                    defaultParams = '{"sessionId": "SESSION_ID", "duration": 10, "actions": [{"time": 1, "action": "move", "properties": {"x": 0, "y": 0, "z": 0}}]}';
                     break;
             }
             

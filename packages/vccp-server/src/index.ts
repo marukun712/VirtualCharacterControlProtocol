@@ -9,6 +9,7 @@ import {
   PerceptionSetRequestSchema,
   PerceptionCategoryRequestSchema,
   PerceptionListRequestSchema,
+  SchedulerSendRequestSchema,
   Session,
 } from "./schema";
 import { randomUUIDv7 } from "bun";
@@ -218,6 +219,7 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
 
       try {
         const payload = {
+          type: "play",
           action: data.params.action,
           properties: data.params.properties,
         };
@@ -315,6 +317,68 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
       return createSuccessResponse(data.id, {
         perceptions: session.perceptions,
       });
+    }
+    case "scheduler.send": {
+      console.log(`[SCHEDULER.SEND] Sending scheduled actions`);
+      const parseResult = parseRequest(SchedulerSendRequestSchema, parsed.data);
+      if (!parseResult.data) {
+        return parseResult.error;
+      }
+
+      const data = parseResult.data;
+      const session = getSession(data.params.sessionId);
+
+      if (!session) {
+        return createErrorResponse(data.id, -32602, "Invalid params");
+      }
+
+      for (const scheduledAction of data.params.actions) {
+        const action = session.actions.find(
+          (action) => action.title === scheduledAction.action
+        );
+        if (!action) {
+          console.warn(
+            `[SCHEDULER.SEND] Action not found: ${scheduledAction.action}`
+          );
+          return createErrorResponse(data.id, -32602, "Invalid params");
+        }
+
+        const validate = ajv.compile(action);
+        const valid = validate(scheduledAction.properties);
+        if (!valid) {
+          console.error(
+            `[SCHEDULER.SEND] Validation failed for action ${scheduledAction.action}:`,
+            validate.errors
+          );
+          return createErrorResponse(data.id, -32602, "Invalid params");
+        }
+      }
+
+      try {
+        const payload = {
+          type: "scheduler",
+          duration: data.params.duration,
+          actions: data.params.actions,
+        };
+        console.log(
+          `[SCHEDULER.SEND] Sending scheduler payload to client:`,
+          JSON.stringify(payload)
+        );
+        session.ws.send(JSON.stringify(payload));
+
+        console.log(
+          `[SCHEDULER.SEND] Scheduler payload sent successfully with ${data.params.actions.length} actions`
+        );
+        return createSuccessResponse(data.id, {
+          success: true,
+        });
+      } catch (error) {
+        console.error(
+          `[SCHEDULER.SEND ERROR] Failed to send scheduler payload:`,
+          error
+        );
+        return createErrorResponse(data.id, -32603, "Internal error");
+      }
     }
     default: {
       console.warn(`[METHOD] Unknown method: ${parsed.data.method}`);

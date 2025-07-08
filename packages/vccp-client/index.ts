@@ -14,6 +14,9 @@ import type {
   PerceptionSetRequest,
   RegisterRequest,
   RegisterResponse,
+  SchedulerAction,
+  SchedulerSendRequest,
+  SchedulerSendResponse,
 } from "./types";
 
 export class VCCPClient {
@@ -190,6 +193,30 @@ export class VCCPClient {
         id: this.id,
         method: "perception.list",
         params: { sessionId },
+      };
+
+      this.ws.send(JSON.stringify(req));
+      this.pending.set(this.id, { resolve, reject });
+
+      this.id++;
+    });
+  }
+
+  sendScheduler(
+    sessionId: string,
+    duration: number,
+    actions: SchedulerAction[]
+  ): Promise<SchedulerSendResponse> {
+    return new Promise((resolve, reject) => {
+      if (!this.ws) {
+        return reject("VCCPサーバーとの接続が確立されていません。");
+      }
+
+      const req: SchedulerSendRequest = {
+        jsonrpc: "2.0",
+        id: this.id,
+        method: "scheduler.send",
+        params: { sessionId, duration, actions },
       };
 
       this.ws.send(JSON.stringify(req));

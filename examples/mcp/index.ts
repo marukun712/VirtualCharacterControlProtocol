@@ -367,6 +367,77 @@ setTimeout(() => {
     }
   );
 
+  server.tool(
+    "scheduler-send",
+    "複数のアクションをスケジュールして送信します",
+    {
+      duration: z.number(),
+      actions: z.array(
+        z.object({
+          time: z.number(),
+          action: z.string(),
+          properties: z.any(),
+        })
+      ),
+    },
+    async ({ duration, actions }, { sessionId }) => {
+      console.log(
+        `[TOOL:scheduler-send] Called with duration: ${duration}, actions: ${actions.length}, sessionId: ${sessionId}`
+      );
+      try {
+        if (!sessionId) {
+          console.error("[TOOL:scheduler-send] Error: Invalid MCP sessionId");
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: MCPサーバーのSessionIdが不正です`,
+              },
+            ],
+          };
+        }
+
+        const id = agents.get(sessionId);
+        console.log(
+          `[TOOL:scheduler-send] VCCP session ID lookup: ${sessionId} -> ${id}`
+        );
+
+        if (!id) {
+          console.error(
+            "[TOOL:scheduler-send] Error: No VCCP session found for MCP session"
+          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー: 先にMCPサーバーに初期化リクエストを送ってください!`,
+              },
+            ],
+          };
+        }
+
+        console.log(
+          `[TOOL:scheduler-send] Sending scheduler with ${actions.length} actions`
+        );
+        const data = await client.sendScheduler(id, duration, actions);
+        console.log(`[TOOL:scheduler-send] ✓ Scheduler sent successfully`);
+
+        return {
+          content: [
+            { type: "text", text: JSON.stringify(data.result, null, 2) },
+          ],
+        };
+      } catch (error) {
+        console.error("[TOOL:scheduler-send] Error:", error);
+        return {
+          content: [
+            { type: "text", text: `エラー: ${(error as Error).message}` },
+          ],
+        };
+      }
+    }
+  );
+
   console.log("[MCP] ✓ All tools registered successfully");
 
   const app = express();
