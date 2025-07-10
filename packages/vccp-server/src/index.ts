@@ -354,7 +354,10 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
         }
       }
 
-      if (data.params.actions[-1].time > data.params.duration) {
+      if (
+        data.params.actions[data.params.actions.length - 1].time >
+        data.params.duration
+      ) {
         return createErrorResponse(data.id, -32602, "Invalid params");
       }
 
