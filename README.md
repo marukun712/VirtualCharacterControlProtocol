@@ -2,21 +2,23 @@
 
 ## 目次
 
-- [概要](#概要)
-- [アーキテクチャ](#アーキテクチャ)
-- [プロトコル仕様](#プロトコル仕様)
-  - [メッセージフォーマット](#メッセージフォーマット)
-  - [API メソッド](#api-メソッド)
-    - [1. register - セッション登録](#1-register---セッション登録)
-    - [2. action.list - アクション一覧取得](#2-actionlist---アクション一覧取得)
-    - [3. action.get - アクション取得](#3-actionget---アクション取得)
-    - [4. action.play - アクション実行](#4-actionplay---アクション実行)
-    - [5. perception.set - 知覚情報の記録](#5-perceptionset---知覚情報の記録)
-    - [6. perception.category - 知覚情報の取得（カテゴリ別）](#6-perceptioncategory---知覚情報の取得カテゴリ別)
-    - [7. perception.list - 知覚情報の一覧取得](#7-perceptionlist---知覚情報の一覧取得)
-    - [8. scheduler.send](#8-schedulersend)
-  - [利用フロー](#利用フロー)
-  - [エラーハンドリング](#エラーハンドリング)
+- [VCCP (Virtual Character Control Protocol) 2.0](#vccp-virtual-character-control-protocol-20)
+  - [目次](#目次)
+  - [概要](#概要)
+  - [アーキテクチャ](#アーキテクチャ)
+  - [プロトコル仕様](#プロトコル仕様)
+    - [メッセージフォーマット](#メッセージフォーマット)
+    - [API メソッド](#api-メソッド)
+      - [1. register - セッション登録](#1-register---セッション登録)
+      - [2. action.list - アクション一覧取得](#2-actionlist---アクション一覧取得)
+      - [3. action.get - アクション取得](#3-actionget---アクション取得)
+      - [4. action.play - アクション実行](#4-actionplay---アクション実行)
+      - [5. perception.set - 知覚情報の記録](#5-perceptionset---知覚情報の記録)
+      - [6. perception.category - 知覚情報の取得（カテゴリ別）](#6-perceptioncategory---知覚情報の取得カテゴリ別)
+      - [7. perception.list - 知覚情報の一覧取得](#7-perceptionlist---知覚情報の一覧取得)
+      - [8 scheduler.send](#8-schedulersend)
+    - [利用フロー](#利用フロー)
+    - [エラーハンドリング](#エラーハンドリング)
 
 ## 概要
 
@@ -99,7 +101,8 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
             "description": "z座標",
             "type": "integer"
           }
-        }
+        },
+        "required": ["x", "y", "z"]
       }
     ]
   }

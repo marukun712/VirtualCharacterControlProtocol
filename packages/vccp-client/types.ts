@@ -7,6 +7,7 @@ export const ActionSchema = z.object({
   description: z.string().optional(),
   type: z.literal("object"),
   properties: z.record(z.any()),
+  required: z.array(z.string()).optional(),
 });
 
 export type Action = z.infer<typeof ActionSchema>;
