@@ -6,7 +6,16 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { VCCPClient } from "vccp-client";
 
-const client = new VCCPClient({ url: "ws://localhost:3000/ws" });
+const client = new VCCPClient(
+  { url: `ws://localhost:3000/ws` },
+  {
+    onOpen: () => {},
+    onMessage: () => {},
+    onError: (error: string) => {
+      console.error(error);
+    },
+  }
+);
 const agents = new Map<string, string>();
 
 async function initializeVCCP() {

@@ -1,4 +1,3 @@
-import { WebSocket } from "ws";
 import type {
   Action,
   ActionGetRequest,
@@ -24,9 +23,22 @@ export class VCCPClient {
   private ws: WebSocket | null = null;
   private id: number = 1;
   private pending = new Map<number, { resolve: Function; reject: Function }>();
+  private callback: {
+    onOpen: Function;
+    onMessage: Function;
+    onError: Function;
+  };
 
-  constructor(config: { url: string }) {
+  constructor(
+    config: { url: string },
+    callback: {
+      onOpen: Function;
+      onMessage: Function;
+      onError: Function;
+    }
+  ) {
     this.config = config;
+    this.callback = callback;
   }
 
   connect(): Promise<string> {
@@ -35,6 +47,7 @@ export class VCCPClient {
 
       this.ws.onopen = () => {
         resolve("VCCPサーバーとの接続が確立されました");
+        this.callback.onOpen();
       };
 
       this.ws.onmessage = (event) => {
@@ -50,13 +63,17 @@ export class VCCPClient {
               pending.resolve(data);
             }
           }
+
+          this.callback.onMessage(data);
         } catch (e) {
           console.error(e);
+          this.callback.onError(e);
         }
       };
 
       this.ws.onerror = (error) => {
         reject(error);
+        this.callback.onError(error);
       };
     });
   }

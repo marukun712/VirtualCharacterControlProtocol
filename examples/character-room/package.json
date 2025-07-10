@@ -10,6 +10,7 @@
   "private": true,
   "dependencies": {
     "@pixiv/three-vrm": "^3.4.2",
+    "@types/three": "^0.178.1",
     "@types/ws": "^8.18.1",
     "hono": "^4.8.4",
     "honox": "^0.1.43",

@@ -16,12 +16,14 @@ import { randomUUIDv7 } from "bun";
 import { WSContext } from "hono/ws";
 import Ajv from "ajv";
 import { ZodSchema } from "zod";
+import { cors } from "hono/cors";
 
 const ajv = new Ajv();
 
 const app = new Hono();
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 const sessions = new Map<string, Session>();
+app.use("*", cors());
 
 function createErrorResponse(
   id: string | number | null,
