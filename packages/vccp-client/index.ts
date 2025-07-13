@@ -18,16 +18,23 @@ import type {
   SchedulerSendResponse,
 } from "./types";
 
+interface PendingRequest {
+  resolve: Function;
+  reject: Function;
+  timeoutId: NodeJS.Timeout;
+}
+
 export class VCCPClient {
   private config: { url: string };
   private ws: WebSocket | null = null;
   private id: number = 1;
-  private pending = new Map<number, { resolve: Function; reject: Function }>();
+  private pending = new Map<number, PendingRequest>();
   private callback: {
     onOpen: Function;
     onMessage: Function;
     onError: Function;
   };
+  private readonly TIMEOUT_MS = 5000;
 
   constructor(
     config: { url: string },
@@ -57,6 +64,10 @@ export class VCCPClient {
 
           //リクエストがレスポンス待ちのリクエストであれば
           if (pending) {
+            // タイムアウトをクリア
+            clearTimeout(pending.timeoutId);
+            this.pending.delete(data.id);
+
             if (data.error) {
               pending.reject(data);
             } else {
@@ -78,64 +89,63 @@ export class VCCPClient {
     });
   }
 
-  register(actions: Action[]): Promise<RegisterResponse> {
+  private sendRequest<T>(request: any): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.ws) {
         return reject("VCCPサーバーとの接続が確立されていません。");
       }
 
-      const req: RegisterRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "register",
-        params: { actions },
-      };
+      const requestId = this.id;
 
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
+      // タイムアウトを設定
+      const timeoutId = setTimeout(() => {
+        const pending = this.pending.get(requestId);
+        if (pending) {
+          this.pending.delete(requestId);
+          reject(
+            new Error(`リクエストがタイムアウトしました (${this.TIMEOUT_MS}ms)`)
+          );
+        }
+      }, this.TIMEOUT_MS);
+
+      this.ws.send(JSON.stringify(request));
+      this.pending.set(requestId, { resolve, reject, timeoutId });
 
       this.id++;
     });
+  }
+
+  register(actions: Action[]): Promise<RegisterResponse> {
+    const req: RegisterRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "register",
+      params: { actions },
+    };
+
+    return this.sendRequest<RegisterResponse>(req);
   }
 
   listActions(sessionId: string): Promise<ActionListResponse> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws) {
-        return reject("VCCPサーバーとの接続が確立されていません。");
-      }
+    const req: ActionListRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "action.list",
+      params: { sessionId },
+    };
 
-      const req: ActionListRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "action.list",
-        params: { sessionId },
-      };
-
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
-
-      this.id++;
-    });
+    return this.sendRequest<ActionListResponse>(req);
   }
 
   getAction(sessionId: string, name: string): Promise<ActionGetResponse> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws) {
-        return reject("VCCPサーバーとの接続が確立されていません。");
-      }
+    const req: ActionGetRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "action.get",
+      params: { sessionId, action: name },
+    };
 
-      const req: ActionGetRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "action.get",
-        params: { sessionId, action: name },
-      };
-
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
-
-      this.id++;
-    });
+    return this.sendRequest<ActionGetResponse>(req);
   }
 
   playAction(
@@ -143,23 +153,14 @@ export class VCCPClient {
     name: string,
     params: Record<string, any>
   ): Promise<ActionPlayResponse> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws) {
-        return reject("VCCPサーバーとの接続が確立されていません。");
-      }
+    const req: ActionPlayRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "action.play",
+      params: { sessionId, action: name, properties: params },
+    };
 
-      const req: ActionPlayRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "action.play",
-        params: { sessionId, action: name, properties: params },
-      };
-
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
-
-      this.id++;
-    });
+    return this.sendRequest<ActionPlayResponse>(req);
   }
 
   setPerception(sessionId: string, category: string, perception: string): void {
@@ -180,43 +181,25 @@ export class VCCPClient {
     sessionId: string,
     category: string
   ): Promise<PerceptionCategoryResponse> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws) {
-        return reject("VCCPサーバーとの接続が確立されていません。");
-      }
+    const req: PerceptionCategoryRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "perception.category",
+      params: { sessionId, category },
+    };
 
-      const req: PerceptionCategoryRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "perception.category",
-        params: { sessionId, category },
-      };
-
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
-
-      this.id++;
-    });
+    return this.sendRequest<PerceptionCategoryResponse>(req);
   }
 
   listPerception(sessionId: string): Promise<PerceptionListResponse> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws) {
-        return reject("VCCPサーバーとの接続が確立されていません。");
-      }
+    const req: PerceptionListRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "perception.list",
+      params: { sessionId },
+    };
 
-      const req: PerceptionListRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "perception.list",
-        params: { sessionId },
-      };
-
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
-
-      this.id++;
-    });
+    return this.sendRequest<PerceptionListResponse>(req);
   }
 
   sendScheduler(
@@ -224,23 +207,14 @@ export class VCCPClient {
     duration: number,
     actions: SchedulerAction[]
   ): Promise<SchedulerSendResponse> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws) {
-        return reject("VCCPサーバーとの接続が確立されていません。");
-      }
+    const req: SchedulerSendRequest = {
+      jsonrpc: "2.0",
+      id: this.id,
+      method: "scheduler.send",
+      params: { sessionId, duration, actions },
+    };
 
-      const req: SchedulerSendRequest = {
-        jsonrpc: "2.0",
-        id: this.id,
-        method: "scheduler.send",
-        params: { sessionId, duration, actions },
-      };
-
-      this.ws.send(JSON.stringify(req));
-      this.pending.set(this.id, { resolve, reject });
-
-      this.id++;
-    });
+    return this.sendRequest<SchedulerSendResponse>(req);
   }
 }
 
