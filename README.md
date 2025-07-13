@@ -10,13 +10,14 @@
     - [メッセージフォーマット](#メッセージフォーマット)
     - [API メソッド](#api-メソッド)
       - [1. register - セッション登録](#1-register---セッション登録)
-      - [2. action.list - アクション一覧取得](#2-actionlist---アクション一覧取得)
-      - [3. action.get - アクション取得](#3-actionget---アクション取得)
-      - [4. action.play - アクション実行](#4-actionplay---アクション実行)
-      - [5. perception.set - 知覚情報の記録](#5-perceptionset---知覚情報の記録)
-      - [6. perception.category - 知覚情報の取得（カテゴリ別）](#6-perceptioncategory---知覚情報の取得カテゴリ別)
-      - [7. perception.list - 知覚情報の一覧取得](#7-perceptionlist---知覚情報の一覧取得)
-      - [8 scheduler.send](#8-schedulersend)
+      - [2. executeメソッド - クライアントへの実行命令](#2-executeメソッド---クライアントへの実行命令)
+      - [3. action.list - アクション一覧取得](#3-actionlist---アクション一覧取得)
+      - [4. action.get - アクション取得](#4-actionget---アクション取得)
+      - [5. action.play - アクション実行](#5-actionplay---アクション実行)
+      - [6. perception.set - 知覚情報の記録](#6-perceptionset---知覚情報の記録)
+      - [7. perception.category - 知覚情報の取得（カテゴリ別）](#7-perceptioncategory---知覚情報の取得カテゴリ別)
+      - [8. perception.list - 知覚情報の一覧取得](#8-perceptionlist---知覚情報の一覧取得)
+      - [9. scheduler.send - スケジュール送信](#9-schedulersend---スケジュール送信)
     - [利用フロー](#利用フロー)
     - [エラーハンドリング](#エラーハンドリング)
 
@@ -121,7 +122,53 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 2. action.list - アクション一覧取得
+#### 2. executeメソッド - クライアントへの実行命令
+
+サーバーからクライアントに送信される実行命令のメッセージフォーマットです。`action.play`や`scheduler.send`メソッドの結果として、クライアント側にこのメッセージが送信されます。
+
+**action.playの場合:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "execute",
+  "params": {
+    "type": "play",
+    "action": "move",
+    "properties": {
+      "x": 5,
+      "y": 0,
+      "z": 5
+    }
+  }
+}
+```
+
+**scheduler.sendの場合:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "execute",
+  "params": {
+    "type": "scheduler",
+    "duration": 10,
+    "actions": [
+      {
+        "time": 1,
+        "action": "move",
+        "properties": {
+          "x": 2,
+          "y": 0,
+          "z": 2
+        }
+      }
+    ]
+  }
+}
+```
+
+#### 3. action.list - アクション一覧取得
 
 指定されたセッションで利用可能なアクションの一覧を取得します。
 
@@ -170,7 +217,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 3. action.get - アクション取得
+#### 4. action.get - アクション取得
 
 指定されたアクションの詳細スキーマを取得します。
 
@@ -216,7 +263,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 4. action.play - アクション実行
+#### 5. action.play - アクション実行
 
 指定されたアクションを実行します。
 
@@ -239,20 +286,6 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-クライアント側にこのようなメッセージが送信されます。
-
-```json
-{
-  "type": "play",
-  "action": "move",
-  "properties": {
-    "x": 5,
-    "y": 0,
-    "z": 5
-  }
-}
-```
-
 **レスポンス:**
 
 ```json
@@ -265,7 +298,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 5. perception.set - 知覚情報の記録
+#### 6. perception.set - 知覚情報の記録
 
 セッションごとに知覚情報を自然言語で記録し、LLM に伝達します。
 
@@ -283,7 +316,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 6. perception.category - 知覚情報の取得（カテゴリ別）
+#### 7. perception.category - 知覚情報の取得（カテゴリ別）
 
 指定されたカテゴリの知覚情報を取得します。
 
@@ -315,7 +348,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 7. perception.list - 知覚情報の一覧取得
+#### 8. perception.list - 知覚情報の一覧取得
 
 セッションに保存されているすべての知覚情報を取得します。
 
@@ -346,7 +379,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
 }
 ```
 
-#### 8 scheduler.send
+#### 9. scheduler.send - スケジュール送信
 
 複数のアクション実行をリクエストします。
 
@@ -378,7 +411,7 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
           "y": 0,
           "z": -2
         }
-      }
+      },
       {
         "time": 10,
         "action": "move",
@@ -390,44 +423,6 @@ VCCP は、LLM がバーチャルキャラクターを操作するための通�
       }
     ]
   }
-}
-```
-
-クライアント側にこのようなメッセージが送信されます。
-
-```json
-{
-  "type": "scheduler",
-  "duration": 10,
-  "actions": [
-    {
-      "time": 1,
-      "action": "move",
-      "properties": {
-        "x": 2,
-        "y": 0,
-        "z": 2
-      }
-    },
-    {
-      "time": 5,
-      "action": "move",
-      "properties": {
-        "x": -2,
-        "y": 0,
-        "z": -2
-      }
-    },
-    {
-      "time": 10,
-      "action": "move",
-      "properties": {
-        "x": 0,
-        "y": 0,
-        "z": 0
-      }
-    }
-  ]
 }
 ```
 

@@ -4,13 +4,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { VCCPClient } from "vccp-client";
+import { VCCPClient, type SchedulerAction } from "vccp-client";
 
 const client = new VCCPClient(
   { url: `ws://localhost:3000/ws` },
   {
     onOpen: () => {},
     onMessage: () => {},
+    onExecute: () => {},
     onError: (error: string) => {
       console.error(error);
     },
@@ -428,7 +429,11 @@ setTimeout(() => {
         console.log(
           `[TOOL:scheduler-send] Sending scheduler with ${actions.length} actions`
         );
-        const data = await client.sendScheduler(id, duration, actions);
+        const data = await client.sendScheduler(
+          id,
+          duration,
+          actions as SchedulerAction[]
+        );
         console.log(`[TOOL:scheduler-send] ✓ Scheduler sent successfully`);
 
         return {

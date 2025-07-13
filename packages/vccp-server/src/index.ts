@@ -221,9 +221,13 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
 
       try {
         const payload = {
-          type: "play",
-          action: data.params.action,
-          properties: data.params.properties,
+          jsonrpc: "2.0",
+          method: "execute",
+          params: {
+            type: "play",
+            action: data.params.action,
+            properties: data.params.properties,
+          },
         };
         console.log(
           `[ACTION.PLAY] Sending action to client:`,
@@ -365,9 +369,13 @@ function handleJSONRPCMessage(message: string, ws: WSContext<unknown>) {
 
       try {
         const payload = {
-          type: "scheduler",
-          duration: data.params.duration,
-          actions: data.params.actions,
+          jsonrpc: "2.0",
+          method: "execute",
+          params: {
+            type: "scheduler",
+            duration: data.params.duration,
+            actions: data.params.actions,
+          },
         };
         console.log(
           `[SCHEDULER.SEND] Sending scheduler payload to client:`,

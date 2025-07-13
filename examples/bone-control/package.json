@@ -15,7 +15,8 @@
     "hono": "^4.8.4",
     "honox": "^0.1.43",
     "three": "^0.178.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "vccp-client": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250214.0",

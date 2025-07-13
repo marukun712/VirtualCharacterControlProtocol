@@ -8,11 +8,7 @@ import {
   VRMHumanBoneName,
   VRMHumanBoneList,
 } from "@pixiv/three-vrm";
-import {
-  VCCPClient,
-  Action,
-  SchedulerAction,
-} from "../../../../packages/vccp-client";
+import { VCCPClient, Action, SchedulerAction } from "vccp-client";
 
 export default function CharacterRoom() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -64,15 +60,17 @@ export default function CharacterRoom() {
       { url: "ws://localhost:3000/ws" },
       {
         onOpen: () => setStatus("Connected"),
-        onMessage: (data: Record<string, any>) => {
+        onMessage: (data) => {
           console.log(data);
+        },
+        onExecute: (data) => {
           if (data.type === "play") {
             handleAction(data.action, data.properties);
           } else if (data.type === "scheduler") {
             handleScheduler(data.actions);
           }
         },
-        onError: (error: string) => {
+        onError: (error) => {
           console.error(error);
           setStatus("Error");
         },

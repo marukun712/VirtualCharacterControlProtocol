@@ -16,7 +16,9 @@ import type {
   SchedulerAction,
   SchedulerSendRequest,
   SchedulerSendResponse,
+  ExecuteParams,
 } from "./types";
+import { ExecuteRequestSchema, JSONRPCResponseSchema } from "./types";
 
 interface PendingRequest {
   resolve: Function;
@@ -28,20 +30,22 @@ export class VCCPClient {
   private config: { url: string };
   private ws: WebSocket | null = null;
   private id: number = 1;
-  private pending = new Map<number, PendingRequest>();
+  private pending = new Map<number | string, PendingRequest>();
   private callback: {
-    onOpen: Function;
-    onMessage: Function;
-    onError: Function;
+    onOpen: () => void;
+    onMessage: (data: Record<string, any>) => void;
+    onError: (error: string) => void;
+    onExecute: (params: ExecuteParams) => void;
   };
   private readonly TIMEOUT_MS = 5000;
 
   constructor(
     config: { url: string },
     callback: {
-      onOpen: Function;
-      onMessage: Function;
-      onError: Function;
+      onOpen: () => void;
+      onMessage: (data: Record<string, any>) => void;
+      onError: (error: string) => void;
+      onExecute: (params: ExecuteParams) => void;
     }
   ) {
     this.config = config;
@@ -60,31 +64,46 @@ export class VCCPClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data.toString());
-          const pending = this.pending.get(data.id);
 
-          //リクエストがレスポンス待ちのリクエストであれば
-          if (pending) {
-            // タイムアウトをクリア
-            clearTimeout(pending.timeoutId);
-            this.pending.delete(data.id);
+          // executeメソッドのメッセージかチェック
+          const executeResult = ExecuteRequestSchema.safeParse(data);
+          if (executeResult.success) {
+            this.callback.onExecute(executeResult.data.params);
+            this.callback.onMessage(executeResult.data);
+            return;
+          }
 
-            if (data.error) {
-              pending.reject(data);
-            } else {
-              pending.resolve(data);
+          const responseResult = JSONRPCResponseSchema.safeParse(data);
+
+          if (responseResult.success) {
+            const pending = this.pending.get(responseResult.data.id);
+            //リクエストがレスポンス待ちのリクエストであれば
+            if (pending) {
+              // タイムアウトをクリア
+              clearTimeout(pending.timeoutId);
+              this.pending.delete(responseResult.data.id);
+
+              if (responseResult.data.error) {
+                pending.reject(responseResult.data);
+                this.callback.onError(responseResult.data.error.message);
+              } else {
+                pending.resolve(responseResult.data);
+              }
             }
           }
 
           this.callback.onMessage(data);
         } catch (e) {
           console.error(e);
-          this.callback.onError(e);
+          this.callback.onError(e instanceof Error ? e.message : String(e));
         }
       };
 
       this.ws.onerror = (error) => {
         reject(error);
-        this.callback.onError(error);
+        this.callback.onError(
+          error instanceof Event ? "WebSocket connection error" : String(error)
+        );
       };
     });
   }

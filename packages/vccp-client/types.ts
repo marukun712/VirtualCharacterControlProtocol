@@ -104,28 +104,15 @@ export const SchedulerSendRequestSchema = z.object({
   id: z.union([z.string(), z.number()]),
 });
 
-export type JSONRPCRequest = z.infer<typeof JSONRPCRequestSchema>;
-export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
-export type ActionListRequest = z.infer<typeof ActionListRequestSchema>;
-export type ActionGetRequest = z.infer<typeof ActionGetRequestSchema>;
-export type ActionPlayRequest = z.infer<typeof ActionPlayRequestSchema>;
-export type PerceptionSetRequest = z.infer<typeof PerceptionSetRequestSchema>;
-export type PerceptionCategoryRequest = z.infer<
-  typeof PerceptionCategoryRequestSchema
->;
-export type PerceptionListRequest = z.infer<typeof PerceptionListRequestSchema>;
-export type SchedulerAction = z.infer<typeof SchedulerActionSchema>;
-export type SchedulerSendRequest = z.infer<typeof SchedulerSendRequestSchema>;
-
 export const JSONRPCResponseSchema = z.object({
   jsonrpc: z.literal("2.0"),
   id: z.union([z.string(), z.number()]),
-  result: z.any().optional(),
+  result: z.record(z.any()).optional(),
   error: z
     .object({
       code: z.number(),
       message: z.string(),
-      data: z.any().optional(),
+      data: z.record(z.any()).optional(),
     })
     .optional(),
 });
@@ -194,6 +181,41 @@ export const SchedulerSendResponseSchema = z.object({
   }),
 });
 
+export const ExecutePlayParamsSchema = z.object({
+  type: z.literal("play"),
+  action: z.string(),
+  properties: z.record(z.any()),
+});
+
+export const ExecuteSchedulerParamsSchema = z.object({
+  type: z.literal("scheduler"),
+  duration: z.number(),
+  actions: z.array(SchedulerActionSchema),
+});
+
+export const ExecuteParamsSchema = z.union([
+  ExecutePlayParamsSchema,
+  ExecuteSchedulerParamsSchema,
+]);
+
+export const ExecuteRequestSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  method: z.literal("execute"),
+  params: ExecuteParamsSchema,
+});
+
+export type JSONRPCRequest = z.infer<typeof JSONRPCRequestSchema>;
+export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+export type ActionListRequest = z.infer<typeof ActionListRequestSchema>;
+export type ActionGetRequest = z.infer<typeof ActionGetRequestSchema>;
+export type ActionPlayRequest = z.infer<typeof ActionPlayRequestSchema>;
+export type PerceptionSetRequest = z.infer<typeof PerceptionSetRequestSchema>;
+export type PerceptionCategoryRequest = z.infer<
+  typeof PerceptionCategoryRequestSchema
+>;
+export type PerceptionListRequest = z.infer<typeof PerceptionListRequestSchema>;
+export type SchedulerAction = z.infer<typeof SchedulerActionSchema>;
+export type SchedulerSendRequest = z.infer<typeof SchedulerSendRequestSchema>;
 export type JSONRPCResponse = z.infer<typeof JSONRPCResponseSchema>;
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
 export type ActionListResponse = z.infer<typeof ActionListResponseSchema>;
@@ -206,3 +228,9 @@ export type PerceptionListResponse = z.infer<
   typeof PerceptionListResponseSchema
 >;
 export type SchedulerSendResponse = z.infer<typeof SchedulerSendResponseSchema>;
+export type ExecutePlayParams = z.infer<typeof ExecutePlayParamsSchema>;
+export type ExecuteSchedulerParams = z.infer<
+  typeof ExecuteSchedulerParamsSchema
+>;
+export type ExecuteParams = z.infer<typeof ExecuteParamsSchema>;
+export type ExecuteRequest = z.infer<typeof ExecuteRequestSchema>;

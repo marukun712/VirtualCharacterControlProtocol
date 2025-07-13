@@ -229,14 +229,13 @@ app.get("/", (c) => {
                         addMessageToLog({ info: \`Session ID が設定されました: \${currentSessionId}\` }, 'received');
                     }
                     
-                    // サーバーからのアクション実行メッセージを処理
-                    if (message.type === 'play') {
-                        addMessageToLog({ info: \`アクション実行: \${message.action}\`, properties: message.properties }, 'received');
-                    }
-                    
-                    // サーバーからのスケジューラーメッセージを処理
-                    if (message.type === 'scheduler') {
-                        addMessageToLog({ info: \`スケジューラー実行: \${message.actions.length}個のアクション\`, duration: message.duration, actions: message.actions }, 'received');
+                    // サーバーからのexecuteメッセージを処理
+                    if (message.method === 'execute' && message.params) {
+                        if (message.params.type === 'play') {
+                            addMessageToLog({ info: \`アクション実行: \${message.params.action}\`, properties: message.params.properties }, 'received');
+                        } else if (message.params.type === 'scheduler') {
+                            addMessageToLog({ info: \`スケジューラー実行: \${message.params.actions.length}個のアクション\`, duration: message.params.duration, actions: message.params.actions }, 'received');
+                        }
                     }
                 } catch (e) {
                     addMessageToLog({ error: 'JSON解析エラー', data: event.data }, 'error');
