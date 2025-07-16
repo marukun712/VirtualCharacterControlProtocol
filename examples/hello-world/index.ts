@@ -1,6 +1,6 @@
-// hello-vccp.ts
 import { VCCPClient, Action, ExecuteParams } from 'vccp-client';
 
+// Defining actions based on JSON Schema
 const actions: Action[] = [
     {
         title: "Hello World",
@@ -10,11 +10,22 @@ const actions: Action[] = [
             name: {
                 type: "string",
                 description: "Name of the person to greet",
+            },
+            messages: {
+                type: "array",
+                description: "Other messages",
+                items: {
+                    type: "string",
+                    description: "A message",
+                }
+
             }
         },
-        required: [],
+        required: ["name"],
     },
 ];
+
+// packages/vccp-server URL
 const WS_URL = "ws://localhost:3000/ws";
 
 async function helloVCCP() {
@@ -22,28 +33,30 @@ async function helloVCCP() {
         { url: WS_URL },
         {
             onOpen: () => { },
-            onMessage: (event) => {
-                console.log("Message received from server");
-                console.log(event);
-            },
+            onMessage: () => { },
             onExecute: (params: ExecuteParams) => {
+                // Handle the execution
                 console.log("Execute params received:", params);
                 switch (params.type) {
                     case "play":
+                        // Handle play actions
                         switch (params.action) {
-                            case "Hello World":
-                                const name = "World";
-                                console.log(`Hello, ${name}!`);
-                                return { result: `Hello, ${name}!` };
+                            case "Hello World": // Handle the Hello World action
+                                const name = params.properties.name;
+                                const messages = params.properties.messages || [];
+                                console.log(`Hello, ${name}!`, `Messages: ${messages.join(", ")}`);
+                                break;
                             default:
                                 console.error("Unknown action:", params.action);
-                                return { error: "Unknown action" };
+                                break;
                         }
                     case "scheduler":
-                        console.log("Scheduler actions received:", params.actions);
+                        // Handle scheduler actions
+                        console.log("Scheduler actions received:", params);
                         break;
                     default:
                         console.error("Unknown action type:", params);
+                        break;
                 }
             },
             onError: (error: string) => {
@@ -52,13 +65,16 @@ async function helloVCCP() {
         }
     );
 
-    // サーバーに接続
+    // Connect to the VCCP server
+    console.log("Connecting to VCCP server...");
     await client.connect();
 
-    // セッションを登録（簡単なアクションを定義）
+    // Register the session with the defined actions
+    console.log("Registering VCCP session with actions...");
     const sessionId = await client.register(actions);
 
-    console.log(`セッションID: ${sessionId.result.sessionId}`);
+    console.log("VCCP Session registered successfully.");
+    console.log(`Session ID: ${sessionId.result.sessionId}`);
 }
 
 helloVCCP();
