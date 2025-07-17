@@ -445,5 +445,6 @@ console.log(`[SERVER] WebSocket server started on /ws`);
 
 export default {
   fetch: app.fetch,
+  port: process.env.PORT || "3000",
   websocket,
 };

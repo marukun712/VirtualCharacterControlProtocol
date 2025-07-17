@@ -6,8 +6,10 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { VCCPClient, type SchedulerAction } from "vccp-client";
 
+const url = process.env.VCCP_URL || "ws://localhost:3000/ws";
+
 const client = new VCCPClient(
-  { url: `ws://localhost:3000/ws` },
+  { url: url },
   {
     onOpen: () => {},
     onMessage: () => {},
@@ -20,9 +22,7 @@ const client = new VCCPClient(
 const agents = new Map<string, string>();
 
 async function initializeVCCP() {
-  console.log(
-    "[VCCP] Attempting to connect to VCCP server at ws://localhost:3000/ws"
-  );
+  console.log("[VCCP] Attempting to connect to VCCP server at" + url);
   try {
     await client.connect();
     console.log("[VCCP] ✓ VCCP client initialized successfully");
@@ -565,9 +565,11 @@ setTimeout(() => {
   app.get("/mcp/:id", handleSessionRequest);
   app.delete("/mcp/:id", handleSessionRequest);
 
-  app.listen(3001, () => {
+  const port = process.env.MCP_PORT || 3001;
+
+  app.listen(port, () => {
     console.log("[SERVER] ====================================");
-    console.log("[SERVER] MCP Server listening on port 3001");
+    console.log("[SERVER] MCP Server listening on port " + port);
     console.log("[SERVER] Endpoints:");
     console.log("[SERVER]   POST   /mcp/:vccpSessionId");
     console.log("[SERVER]   GET    /mcp/:vccpSessionId");
