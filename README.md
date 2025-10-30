@@ -1,461 +1,407 @@
-# VCCP (Virtual Character Control Protocol) 2.0
+# VCCP(Virtual Character Control Protocol)
+
+VCCPの実装は、[aikyo](https://github.com/marukun712/aikyo)に移動しました。
 
 ## 目次
 
-- [VCCP (Virtual Character Control Protocol) 2.0](#vccp-virtual-character-control-protocol-20)
-  - [目次](#目次)
-  - [概要](#概要)
-  - [アーキテクチャ](#アーキテクチャ)
-  - [プロトコル仕様](#プロトコル仕様)
-    - [メッセージフォーマット](#メッセージフォーマット)
-    - [API メソッド](#api-メソッド)
-      - [1. register - セッション登録](#1-register---セッション登録)
-      - [2. executeメソッド - クライアントへの実行命令](#2-executeメソッド---クライアントへの実行命令)
-      - [3. action.list - アクション一覧取得](#3-actionlist---アクション一覧取得)
-      - [4. action.get - アクション取得](#4-actionget---アクション取得)
-      - [5. action.play - アクション実行](#5-actionplay---アクション実行)
-      - [6. perception.set - 知覚情報の記録](#6-perceptionset---知覚情報の記録)
-      - [7. perception.category - 知覚情報の取得（カテゴリ別）](#7-perceptioncategory---知覚情報の取得カテゴリ別)
-      - [8. perception.list - 知覚情報の一覧取得](#8-perceptionlist---知覚情報の一覧取得)
-      - [9. scheduler.send - スケジュール送信](#9-schedulersend---スケジュール送信)
-    - [利用フロー](#利用フロー)
-    - [エラーハンドリング](#エラーハンドリング)
+1. [概要](#概要)
+2. [アーキテクチャ](#アーキテクチャ)
+3. [トランスポート層](#トランスポート層)
+4. [メッセージフォーマット](#メッセージフォーマット)
+5. [メッセージタイプ](#メッセージタイプ)
+6. [ターンテイキングプロトコル](#ターンテイキングプロトコル)
+7. [クエリ/レスポンスパターン](#クエリレスポンスパターン)
+8. [状態同期](#状態同期)
+9. [エラーハンドリング](#エラーハンドリング)
 
-## 概要
+## 1. 概要
 
-VCCP は、LLM がバーチャルキャラクターを操作するための通信プロトコルです。JSON-RPC 2.0 形式を採用し、セッションベースでキャラクターの動作を制御します。
+VCCP(Virtual Character Control Protocol)は、複数のLLMがP2Pネットワーク上で自然な会話を行うための通信プロトコルです。
 
-## アーキテクチャ
+## 2. アーキテクチャ
+
+### 2.1 システム構成
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Client      │    │  VCCP Server    │    │      LLM        │
-│  (Game/App)     │    │  (Hono/WS)      │    │   (External)    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                        │                        │
-         │ 1. WebSocket Connect   │                        │
-         │───────────────────────→│                        │
-         │                        │                        │
-         │ 2. register(actions)   │                        │
-         │───────────────────────→│                        │
-         │                        │                        │
-         │ 3. sessionId           │                        │
-         │←───────────────────────│                        │
-         │                        │                        │
-         │                        │ 4. action.get          │
-         │                        │←───────────────────────│
-         │                        │                        │
-         │                        │ 5. available actions   │
-         │                        │───────────────────────→│
-         │                        │                        │
-         │                        │ 6. action.play         │
-         │                        │←───────────────────────│
-         │                        │                        │
-         │ 7. execute action      │                        │
-         │←───────────────────────│                        │
-         │                        │                        │
-         │ 8. perception.set      │                        │
-         │───────────────────────→│                        │
-         │                        │                        │
-         │                        │ 9. perception.category │
-         │                        │←───────────────────────│
-         │                        │                        │
-         │                        │ 10. perception data    │
-         │                        │───────────────────────→│
+┌─────────────────┐
+│  Companion A    │
+│  (libp2p node)  │
+└────────┬────────┘
+         │
+         │ P2P Network (GossipSub)
+         │
+    ┌────┴────┐
+    │         │
+┌───▼─────┐ ┌▼────────┐      ┌──────────────┐
+│Companion│ │Companion│◄─────►│  Firehose    │
+│    B    │ │    C    │WebSock│  Server      │
+└─────────┘ └─────────┘  et   └──────┬───────┘
+                                      │
+                                ┌─────▼──────┐
+                                │  Clients   │
+                                │ (Browser)  │
+                                └────────────┘
 ```
 
-## プロトコル仕様
+### 2.2 コンポーネント
 
-### メッセージフォーマット
+#### 2.2.1 Companion Agent
+- **役割**: LLMの実行環境
+- **主要機能**:
+  - メッセージ生成・受信
+  - ツール実行
+  - メモリ管理(長期・作業記憶)
 
-すべての通信は JSON-RPC 2.0 形式に準拠します。
+#### 2.2.2 Companion Server
+- **役割**: libp2pベースのP2Pサーバー
+- **主要機能**:
+  - ピア管理
+  - メッセージルーティング
+  - ターンテイキング制御
 
-### API メソッド
+#### 2.2.3 Firehose Server
+- **役割**: WebSocketブリッジサーバー
+- **主要機能**:
+  - libp2p <-> WebSocketブリッジ
+  - クライアント管理
+  - トピックベースのルーティング
 
-#### 1. register - セッション登録
+## 3. トランスポート層
 
-新しいセッションを開始し、利用可能なアクションを登録します。アクションのスキーマは JSON Schema で記述され、ユーザーは任意のアクションを登録できます。
+### 3.1 libp2p設定
 
-**リクエスト:**
+#### 3.1.1 トランスポート
+- **TCP**: `/ip4/0.0.0.0/tcp/0`(動的ポート割り当て)
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "register",
-  "params": {
-    "actions": [
-      {
-        "title": "move",
-        "description": "キャラクターを指定した座標に移動させる",
-        "type": "object",
-        "properties": {
-          "x": {
-            "description": "x座標",
-            "type": "integer"
-          },
-          "y": {
-            "description": "y座標",
-            "type": "integer"
-          },
-          "z": {
-            "description": "z座標",
-            "type": "integer"
-          }
-        },
-        "required": ["x", "y", "z"]
-      }
-    ]
-  }
+#### 3.1.2 ピアディスカバリー
+- **mDNS**: ローカルネットワーク上の自動検出
+
+#### 3.1.3 GossipSubプロトコル
+- **GossipSub**: メッセージ配信
+  - `allowPublishToZeroTopicPeers: true`
+  - `emitSelf: true`(自己発信メッセージも受信)
+
+### 3.2 トピック構造
+
+VCCPでは以下の標準トピックを定義。
+
+| トピック名  | 用途                         | メッセージタイプ   |
+| ----------- | ---------------------------- | ------------------ |
+| `messages`  | 会話メッセージ               | Message            |
+| `states`    | 状態通知                     | State              |
+| `queries`   | クエリリクエスト・レスポンス | Query, QueryResult |
+| `actions`   | クライアントアクション       | Action             |
+
+### 3.3 カスタムプロトコル
+
+#### 3.3.1 メタデータプロトコル
+- **プロトコルID**: `/aikyo/metadata/1.0.0`
+- **用途**: ピア接続時のコンパニオン情報交換
+- **フロー**:
+  ```
+  Peer A                    Peer B
+     |  dialProtocol           |
+     |------------------------>|
+     |                         |
+     |  metadata JSON          |
+     |<------------------------|
+     |  stream.close           |
+  ```
+
+---
+
+## 4. メッセージフォーマット
+
+### 4.1 基本構造
+
+全てのVCCPメッセージは**JSON-RPC 2.0**仕様に準拠します。
+
+```typescript
+interface VCCPMessage {
+  jsonrpc: "2.0";
+  method: string;
+  params?: object;
+  id?: string | number;
 }
 ```
 
-**レスポンス:**
+### 4.2 メタデータスキーマ
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "sessionId": "uuid"
-  }
+各コンパニオンは以下のメタデータを持ちます。
+
+```typescript
+interface Metadata {
+  id: string;           // 一意の識別子
+  name: string;         // 表示名
+  personality: string;  // 性格記述
+  story: string;        // 背景ストーリー
+  sample: string;       // サンプル発言
 }
 ```
 
-#### 2. executeメソッド - クライアントへの実行命令
+---
 
-サーバーからクライアントに送信される実行命令のメッセージフォーマットです。`action.play`や`scheduler.send`メソッドの結果として、クライアント側にこのメッセージが送信されます。
+## 5. メッセージタイプ
 
-**action.playの場合:**
+### 5.1 Message (会話メッセージ)
 
-```json
+**用途**: コンパニオン間の会話内容を送信
+
+**メソッド**: `message.send`
+
+**スキーマ**:
+```typescript
 {
-  "jsonrpc": "2.0",
-  "method": "execute",
-  "params": {
-    "type": "play",
-    "action": "move",
-    "properties": {
-      "x": 5,
-      "y": 0,
-      "z": 5
+  jsonrpc: "2.0",
+  method: "message.send",
+  params: {
+    id: string,              // メッセージID (UUID)
+    from: string,            // 送信者ID
+    to: string[],            // 宛先IDリスト
+    message: string,         // メッセージ本文
+    metadata?: {             // オプションメタデータ
+      emotion?: "happy" | "sad" | "angry" | "neutral",
+      [key: string]: any
     }
   }
 }
 ```
 
-**scheduler.sendの場合:**
-
+**例**:
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "execute",
+  "method": "message.send",
   "params": {
-    "type": "scheduler",
-    "duration": 10,
-    "actions": [
-      {
-        "time": 1,
-        "action": "move",
-        "properties": {
-          "x": 2,
-          "y": 0,
-          "z": 2
-        }
-      }
-    ]
-  }
-}
-```
-
-#### 3. action.list - アクション一覧取得
-
-指定されたセッションで利用可能なアクションの一覧を取得します。
-
-**リクエスト:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "action.list",
-  "params": {
-    "sessionId": "uuid"
-  }
-}
-```
-
-**レスポンス:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "actions": [
-      {
-        "title": "move",
-        "description": "キャラクターを指定した座標に移動させる",
-        "type": "object",
-        "properties": {
-          "x": {
-            "description": "x座標",
-            "type": "integer"
-          },
-          "y": {
-            "description": "y座標",
-            "type": "integer"
-          },
-          "z": {
-            "description": "z座標",
-            "type": "integer"
-          }
-        }
-      }
-    ]
-  }
-}
-```
-
-#### 4. action.get - アクション取得
-
-指定されたアクションの詳細スキーマを取得します。
-
-**リクエスト:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "action.get",
-  "params": {
-    "sessionId": "uuid",
-    "action": "move"
-  }
-}
-```
-
-**レスポンス:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "title": "move",
-    "description": "キャラクターを指定した座標に移動させる",
-    "type": "object",
-    "properties": {
-      "x": {
-        "description": "x座標",
-        "type": "integer"
-      },
-      "y": {
-        "description": "y座標",
-        "type": "integer"
-      },
-      "z": {
-        "description": "z座標",
-        "type": "integer"
-      }
+    "id": "dd3986c3-66f4-4f50-98cd-128f44faf9ee",
+    "from": "companion_kyoko",
+    "to": ["companion_aya", "companion_natsumi"],
+    "message": "こんにちは!今日はどんなお話をしましょうか?",
+    "metadata": {
+      "emotion": "happy"
     }
   }
 }
 ```
 
-#### 5. action.play - アクション実行
+### 5.2 State (状態通知)
 
-指定されたアクションを実行します。
+**用途**: ターンテイキングのための状態通知
 
-**リクエスト:**
+**メソッド**: `state.send`
 
+**スキーマ**:
+```typescript
+{
+  jsonrpc: "2.0",
+  method: "state.send",
+  params: {
+    from: string,                                    // コンパニオンID
+    state: "speak" | "listen",                       // 発言意欲
+    importance: number,                              // 重要度 (0-10)
+    selected: boolean,                               // 指名されたか
+    closing: "none" | "pre-closing" | "closing" | "terminal"  // 終了段階
+  }
+}
+```
+
+**フィールド詳細**:
+- **state**: 
+  - `speak`: 次に発言したい
+  - `listen`: 聞く姿勢
+- **importance**: 発言の重要度スコア(0-10)
+- **selected**: 前回の発言で指名されたか
+- **closing**: 会話の収束段階
+  - `none`: 継続中
+  - `pre-closing`: 終了への布石
+  - `closing`: クロージング表現
+  - `terminal`: 最終挨拶
+
+**例**:
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 1,
-  "method": "action.play",
+  "method": "state.send",
   "params": {
-    "sessionId": "uuid",
-    "action": "move",
-    "properties": {
-      "x": 5,
-      "y": 0,
-      "z": 5
+    "from": "companion_aya",
+    "state": "speak",
+    "importance": 7,
+    "selected": false,
+    "closing": "none"
+  }
+}
+```
+
+### 5.3 Query (クエリリクエスト)
+
+**用途**: ネットワーク全体への情報要求(特定のノードが持っているデータをLLMに渡したい場合など)
+
+**メソッド**: `query.send`
+
+**スキーマ**:
+```typescript
+{
+  jsonrpc: "2.0",
+  method: "query.send",
+  id: string,              // クエリID
+  params: {
+    from: string,          // 送信者ID
+    type: string,          // クエリタイプ
+    body?: {               // オプションパラメータ
+      [key: string]: any
     }
   }
 }
 ```
 
-**レスポンス:**
-
+**例**:
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "success": true
-  }
-}
-```
-
-#### 6. perception.set - 知覚情報の記録
-
-セッションごとに知覚情報を自然言語で記録し、LLM に伝達します。
-
-**リクエスト:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "perception.set",
+  "method": "query.send",
+  "id": "dd3986c3-66f4-4f50-98cd-128f44faf9ee",
   "params": {
-    "sessionId": "uuid",
-    "category": "object",
-    "perception": "椅子がx:2,y:2,z:0にあります"
+    "from": "companion_kyoko",
+    "type": "speak",
+    "body": {
+      "message": "準備できましたか?",
+      "emotion": "neutral"
+    }
   }
 }
 ```
 
-#### 7. perception.category - 知覚情報の取得（カテゴリ別）
+### 5.4 QueryResult (クエリレスポンス)
 
-指定されたカテゴリの知覚情報を取得します。
+**用途**: クエリへの応答
 
-**リクエスト:**
-
-```json
+**スキーマ**:
+```typescript
 {
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "perception.category",
-  "params": {
-    "sessionId": "uuid",
-    "category": "object"
-  }
+  jsonrpc: "2.0",
+  id: string,              // 対応するクエリID
+  result?: {               // 成功時
+    success: boolean,
+    body: {
+      [key: string]: any
+    }
+  },
+  error?: string          // エラー時
 }
 ```
 
-**レスポンス:**
-
+**例(成功)**:
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 1,
+  "id": "dd3986c3-66f4-4f50-98cd-128f44faf9ee",
   "result": {
-    "perceptions": [
-      { "category": "object", "perception": "椅子がx:2,y:2,z:0にあります" }
-    ]
+    "success": true,
+    "body": {
+      "ready": true,
+    }
   }
 }
 ```
 
-#### 8. perception.list - 知覚情報の一覧取得
-
-セッションに保存されているすべての知覚情報を取得します。
-
-**リクエスト:**
-
+**例(エラー)**:
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 1,
-  "method": "perception.list",
+  "id": "dd3986c3-66f4-4f50-98cd-128f44faf9ee",
+  "error": "Timeout: クエリがタイムアウトしました"
+}
+```
+
+### 5.5 Action (アクション通知)
+
+**用途**: クライアント(3Dモデル、ロボット等)へのアクション指示
+
+**メソッド**: `action.send`
+
+**スキーマ**:
+```typescript
+{
+  jsonrpc: "2.0",
+  method: "action.send",
+  params: {
+    from: string,          // 送信者ID
+    name: string,          // アクション名
+    params: {              // アクションパラメータ
+      [key: string]: any
+    },
+    metadata?: {           // オプションメタデータ
+      [key: string]: any
+    }
+  }
+}
+```
+
+**例**:
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "action.send",
   "params": {
-    "sessionId": "uuid"
+    "from": "companion_natsumi",
+    "name": "display_reaction",
+    "params": {
+      "type": "surprised",
+      "intensity": 8
+    }
   }
 }
 ```
 
-**レスポンス:**
+クライアントは、定義したパラメータに応じてメッセージを解釈し、それぞれのユースケースに応じた処理を行う(例であれば、キャラクターの表情APIから表情を変更するなど)
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "perceptions": [
-      { "category": "object", "perception": "椅子がx:2,y:2,z:0にあります" }
-    ]
-  }
-}
+---
+
+## 6. ターンテイキングプロトコル
+
+### 6.1 概要
+
+VCCPのターンテイキングシステムは、複数のLLMが自然な順番で会話を進めるための調整機能を提供します。
+
+### 6.2 フロー
+
+```
+1. Message受信
+   ↓
+2. 各コンパニオンがStateを生成・送信
+   ↓
+3. State集計・評価
+   ↓
+5. スピーカー選択
+   ↓
+6. 選択されたコンパニオンのみがメッセージ生成関数を呼び出す
 ```
 
-#### 9. scheduler.send - スケジュール送信
+State集計方法は定義していませんが、aikyoではCRDTライブラリのLoroでMapとして管理しています。
 
-複数のアクション実行をリクエストします。
+### 6.3 スピーカー選択ロジック
 
-**リクエスト:**
+**優先順位**:
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "scheduler.send",
-  "params": {
-    "sessionId": "uuid",
-    "duration": 10,
-    "actions": [
-      {
-        "time": 1,
-        "action": "move",
-        "properties": {
-          "x": 2,
-          "y": 0,
-          "z": 2
-        }
-      },
-      {
-        "time": 5,
-        "action": "move",
-        "properties": {
-          "x": -2,
-          "y": 0,
-          "z": -2
-        }
-      },
-      {
-        "time": 10,
-        "action": "move",
-        "properties": {
-          "x": 0,
-          "y": 0,
-          "z": 0
-        }
-      }
-    ]
-  }
-}
+1. **指名された場合** (`selected: true`)
+   - 複数いる場合: `importance`の最大値
+   
+2. **発言意欲がある場合** (`state: "speak"`)
+   - 複数いる場合: `importance`の最大値
+
+3. **該当なし**
+   - 会話継続なし
+
+### 6.4 会話終了制御
+
+`closing`フィールドによる段階的終了。
+
+```
+none → pre-closing → closing → terminal
 ```
 
-**レスポンス:**
+- `terminal`に達すると、メッセージ送信処理を行わない。
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "success": true
-  }
-}
-```
+### 6.5 タイムアウト
 
-### 利用フロー
-
-1. クライアントは `register` メソッドを呼び出し、実行可能なアクションを登録
-2. サーバーはセッション ID を返却
-3. クライアントは必要に応じて `action.list` メソッドでアクション一覧を確認
-4. セッション ID を使用して、`action.play` や `perception.set` などのメソッドを呼び出し、バーチャルキャラクターの操作を継続
-
-### エラーハンドリング
-
-JSON-RPC 2.0 標準のエラーフォーマットに従います：
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": -32602,
-    "message": "Invalid params"
-  }
-}
-```
+デフォルト: **5000ms**
